@@ -569,6 +569,11 @@ class RestaurantPOS:
         self.total_label.config(text=f"TOTAL: ${total:.2f}")
 
     def procesar_pago(self):
+        print("DEBUG: Iniciando procesar_pago")
+        print(f"DEBUG: Items en orden: {len(self.orden_actual['items'])}")
+        print(f"DEBUG: Total: {self.orden_actual['total']}")
+        print(f"DEBUG: Tipo de orden: {self.tipo_orden}")
+        
         if not self.orden_actual['items']:
             messagebox.showerror("Error", "La orden está vacía")
             return
@@ -577,10 +582,12 @@ class RestaurantPOS:
         cliente_nombre = None
         if self.tipo_orden == 'mostrador':
             cliente_nombre = self.cliente_nombre_entry.get().strip()
+            print(f"DEBUG: Nombre cliente mostrador: '{cliente_nombre}'")
             if not cliente_nombre:
                 messagebox.showerror("Error", "Por favor ingrese el nombre del cliente")
                 return
         
+        print(f"DEBUG: Llamando show_payment_dialog con cliente_nombre: {cliente_nombre}")
         self.show_payment_dialog(cliente_nombre)
 
     def show_payment_dialog(self, cliente_nombre=None):
@@ -674,12 +681,16 @@ class RestaurantPOS:
                     amount_entry.focus()
                     return
                 
+                # Usar el parámetro cliente_nombre que se pasó a la función show_payment_dialog
                 self.crear_orden_db(payment_method.get(), amount, cliente_nombre)
                 dialog.destroy()
                 
             except ValueError:
                 messagebox.showerror("Error", "Por favor ingrese un monto válido")
                 amount_entry.focus()
+            except Exception as e:
+                messagebox.showerror("Error", f"Error procesando el pago: {str(e)}")
+                print(f"Error en confirmar_pago: {e}")  # Para debug
         
         # Botones - más compactos
         button_frame = tk.Frame(main_frame, bg='#f8f9fa')
@@ -697,9 +708,22 @@ class RestaurantPOS:
 
     def crear_orden_db(self, metodo_pago, monto_pagado, cliente_nombre=None):
         try:
+            print(f"DEBUG: Creando orden - metodo_pago: {metodo_pago}, monto_pagado: {monto_pagado}, cliente_nombre: {cliente_nombre}")
+            print(f"DEBUG: Items en orden: {len(self.orden_actual['items'])}")
+            print(f"DEBUG: Total orden: {self.orden_actual['total']}")
+            
+            # Verificar que haya items en la orden
+            if not self.orden_actual['items']:
+                raise Exception("La orden está vacía")
+            
+            # Verificar que hay un turno activo
+            if not auth.current_turno:
+                raise Exception("No hay turno activo")
+            
             # Generar número de orden
             import time
             numero_orden = f"ORD{int(time.time())}"
+            print(f"DEBUG: Número de orden generado: {numero_orden}")
             
             # Calcular cambio
             cambio = monto_pagado - self.orden_actual['total']
@@ -712,6 +736,8 @@ class RestaurantPOS:
                 cliente_id = self.cliente_actual['id']
                 nombre_final = self.cliente_actual['nombre']
             
+            print(f"DEBUG: cliente_id: {cliente_id}, nombre_final: {nombre_final}")
+            
             # Crear orden
             query = """
             INSERT INTO ordenes (numero_orden, cliente_id, cliente_nombre, tipo_orden,
@@ -719,37 +745,51 @@ class RestaurantPOS:
                                turno_id, cajero_id, fecha_orden)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
             """
-            orden_id = db.execute_one(query, (
+            valores = (
                 numero_orden, cliente_id, nombre_final, self.tipo_orden,
                 self.orden_actual['total'], self.orden_actual['total'],
                 metodo_pago, monto_pagado, cambio,
                 auth.current_turno['id'], auth.current_user['id']
-            ))
+            )
+            print(f"DEBUG: Valores para inserción: {valores}")
+            
+            orden_id = db.execute_one(query, valores)
+            print(f"DEBUG: ID de orden creada: {orden_id}")
             
             if not orden_id:
-                raise Exception("No se pudo crear la orden")
+                raise Exception("No se pudo crear la orden en la base de datos")
             
             # Crear detalles de la orden
-            for item in self.orden_actual['items']:
+            for i, item in enumerate(self.orden_actual['items']):
+                print(f"DEBUG: Insertando item {i+1}: {item['nombre']}")
                 query = """
                 INSERT INTO orden_detalles (orden_id, producto_id, cantidad, precio_unitario, subtotal)
                 VALUES (%s, %s, %s, %s, %s)
                 """
-                db.execute_one(query, (
+                detalle_result = db.execute_one(query, (
                     orden_id, item['id'], item['cantidad'], item['precio'], item['subtotal']
                 ))
+                print(f"DEBUG: Detalle insertado con ID: {detalle_result}")
             
             # Imprimir tickets
+            print("DEBUG: Generando tickets...")
             ticket_path = printer.print_customer_ticket(orden_id)
             comanda_path = printer.print_kitchen_ticket(orden_id)
+            print(f"DEBUG: Tickets generados - Venta: {ticket_path}, Comanda: {comanda_path}")
             
-            messagebox.showinfo("Éxito", f"Orden {numero_orden} creada exitosamente")
+            messagebox.showinfo("Éxito", f"Orden {numero_orden} creada exitosamente\nTickets generados correctamente")
+            
+            # Limpiar orden actual
+            self.orden_actual = {'items': [], 'total': 0.0}
+            self.cliente_actual = None
             
             # Volver al menú principal
             self.show_cajero_menu()
             
         except Exception as e:
-            messagebox.showerror("Error", f"Error creando la orden: {str(e)}")
+            error_msg = f"Error creando la orden: {str(e)}"
+            print(f"ERROR: {error_msg}")
+            messagebox.showerror("Error", error_msg)
 
     def show_historial(self):
         dialog = tk.Toplevel(self.root)
