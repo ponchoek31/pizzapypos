@@ -1191,35 +1191,52 @@ DIFERENCIA: ${diferencia:.2f}"""
             
             def finalizar_corte():
                 try:
+                    password = admin_pass_entry.get().strip()
+                    if not password:
+                        messagebox.showerror("Error", "Por favor ingrese la contraseña")
+                        admin_pass_entry.focus()
+                        return
+                    
                     # Verificar contraseña del administrador nuevamente
                     query = "SELECT * FROM usuarios WHERE id = %s AND password = %s"
-                    admin_check = db.execute_one(query, (admin_user['id'], admin_pass_entry.get()))
+                    admin_check = db.execute_one(query, (admin_user['id'], password))
                     
                     if not admin_check:
                         messagebox.showerror("Error", "Contraseña de administrador incorrecta")
                         admin_pass_entry.focus()
                         return
                     
-                    print("DEBUG: Cerrando turno...")
+                    print("DEBUG: Contraseña verificada, procediendo a cerrar turno...")
+                    print(f"DEBUG: Valores - Efectivo: {efectivo_cajero}, Tarjeta: {tarjeta_cajero}")
+                    
+                    # Guardar el ID del turno antes de cerrarlo
+                    turno_id_para_corte = auth.current_turno['id'] if auth.current_turno else None
+                    
                     # Cerrar turno
-                    if auth.cerrar_turno(efectivo_cajero, tarjeta_cajero):
+                    resultado_cerrar = auth.cerrar_turno(efectivo_cajero, tarjeta_cajero)
+                    print(f"DEBUG: Resultado cerrar_turno: {resultado_cerrar}")
+                    
+                    if resultado_cerrar:
                         # Imprimir corte
-                        turno_id = auth.current_turno['id'] if auth.current_turno else None
-                        print(f"DEBUG: Imprimiendo corte para turno: {turno_id}")
+                        print(f"DEBUG: Imprimiendo corte para turno: {turno_id_para_corte}")
                         
-                        if turno_id:
-                            corte_path = printer.print_corte_caja(turno_id)
+                        if turno_id_para_corte:
+                            corte_path = printer.print_corte_caja(turno_id_para_corte)
+                            print(f"DEBUG: Corte impreso en: {corte_path}")
                         
-                        messagebox.showinfo("Éxito", "Corte de caja realizado correctamente")
+                        messagebox.showinfo("Éxito", "Corte de caja realizado correctamente\nSesión cerrada automáticamente")
                         dialog.destroy()
                         
                         # Hacer logout después del corte
                         auth.logout()
                         self.show_login()
                     else:
-                        messagebox.showerror("Error", "No se pudo procesar el corte de caja")
+                        messagebox.showerror("Error", "No se pudo procesar el corte de caja.\nVerifique la conexión a la base de datos.")
+                        
                 except Exception as e:
                     print(f"ERROR en finalizar_corte: {e}")
+                    import traceback
+                    traceback.print_exc()
                     messagebox.showerror("Error", f"Error finalizando corte: {str(e)}")
             
             # Botones
