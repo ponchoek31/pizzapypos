@@ -1142,6 +1142,12 @@ class RestaurantPOS:
                 canvas.unbind_all("<MouseWheel>")
                 preview_dialog.destroy()
             
+            preview_dialog.protocol("WM_DELETE_WINDOW", on_closing)
+            
+        except Exception as e:
+            print(f"ERROR en show_orden_preview: {e}")
+            messagebox.showerror("Error", f"Error mostrando previsualización: {str(e)}")
+
     def eliminar_orden_completa(self, orden_id, orden_info, parent_dialog, tree):
         try:
             print(f"DEBUG: Iniciando eliminación de orden {orden_id}")
