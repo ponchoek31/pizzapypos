@@ -35,13 +35,13 @@ class RestaurantPOS:
         style = ttk.Style()
         style.theme_use('clam')
         
-        # Configurar colores (paleta gris con azul)
-        style.configure('Title.TLabel', font=('Arial', 16, 'bold'), background='#f5f5f5', foreground='#2c3e50')
-        style.configure('Header.TLabel', font=('Arial', 12, 'bold'), background='#f5f5f5', foreground='#34495e')
+        # Configurar colores - esquema azul consistente
+        style.configure('Title.TLabel', font=('Arial', 16, 'bold'), background='#f8f9fa', foreground='#2c3e50')
+        style.configure('Header.TLabel', font=('Arial', 12, 'bold'), background='#f8f9fa', foreground='#34495e')
         style.configure('Blue.TButton', foreground='white', background='#3498db')
-        style.configure('Green.TButton', foreground='white', background='#27ae60')
-        style.configure('Red.TButton', foreground='white', background='#e74c3c')
-        style.configure('Gray.TButton', foreground='white', background='#7f8c8d')
+        style.configure('DarkBlue.TButton', foreground='white', background='#2980b9')
+        style.configure('Gray.TButton', foreground='white', background='#95a5a6')
+        style.configure('LightBlue.TButton', foreground='white', background='#5dade2')
 
     def show_login(self):
         self.clear_window()
@@ -102,34 +102,72 @@ class RestaurantPOS:
     def show_iniciar_turno(self):
         dialog = tk.Toplevel(self.root)
         dialog.title("Iniciar Turno")
-        dialog.geometry("300x200")
+        dialog.geometry("380x280")
+        dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
         
-        tk.Label(dialog, text="Iniciar Nuevo Turno", font=('Arial', 14, 'bold')).pack(pady=20)
+        # Configurar color de fondo
+        dialog.configure(bg='#f8f9fa')
         
-        tk.Label(dialog, text="Fondo inicial de caja:").pack(pady=5)
-        fondo_entry = tk.Entry(dialog, font=('Arial', 12))
-        fondo_entry.pack(pady=5)
+        # Frame principal compacto
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=15, pady=15)
+        
+        tk.Label(main_frame, text="🕐 INICIAR NUEVO TURNO", font=('Arial', 14, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,15))
+        
+        # Frame para fondo inicial - más compacto
+        fondo_frame = tk.LabelFrame(main_frame, text="Fondo Inicial de Caja", font=('Arial', 11),
+                                   bg='#f8f9fa', fg='#2c3e50')
+        fondo_frame.pack(pady=(0,15), fill='x')
+        
+        entry_frame = tk.Frame(fondo_frame, bg='#f8f9fa')
+        entry_frame.pack(pady=10)
+        
+        tk.Label(entry_frame, text="$", font=('Arial', 16, 'bold'), bg='#f8f9fa').pack(side='left')
+        fondo_entry = tk.Entry(entry_frame, font=('Arial', 16), width=8, justify='center',
+                              relief='solid', bd=1)
+        fondo_entry.pack(side='left', padx=5)
         
         def crear_turno():
             try:
-                fondo = float(fondo_entry.get())
+                fondo_text = fondo_entry.get().strip()
+                if not fondo_text:
+                    messagebox.showerror("Error", "Por favor ingrese el fondo inicial")
+                    fondo_entry.focus()
+                    return
+                
+                fondo = float(fondo_text)
                 if fondo < 0:
                     messagebox.showerror("Error", "El fondo inicial no puede ser negativo")
+                    fondo_entry.focus()
                     return
                 
                 if auth.crear_turno(fondo):
-                    messagebox.showinfo("Éxito", "Turno iniciado correctamente")
+                    messagebox.showinfo("Éxito", f"Turno iniciado correctamente\nFondo inicial: ${fondo:.2f}")
                     dialog.destroy()
                     self.show_cajero_menu()
                 else:
                     messagebox.showerror("Error", "No se pudo crear el turno")
             except ValueError:
                 messagebox.showerror("Error", "Por favor ingrese un monto válido")
+                fondo_entry.focus()
         
-        tk.Button(dialog, text="Iniciar Turno", command=crear_turno).pack(pady=20)
+        # Botones - más compactos
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack(pady=(0,5), fill='x')
+        
+        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                 bg='#95a5a6', fg='white', width=10, height=1,
+                 command=self.root.quit).pack(side='left', padx=5)
+        
+        tk.Button(button_frame, text="INICIAR TURNO", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=12, height=1,
+                 command=crear_turno).pack(side='right', padx=5)
+        
         fondo_entry.focus()
+        fondo_entry.bind('<Return>', lambda e: crear_turno())
 
     def show_cajero_menu(self):
         self.clear_window()
@@ -169,11 +207,11 @@ class RestaurantPOS:
                  command=lambda: self.nueva_orden('mostrador')).pack(side='left', padx=10)
         
         tk.Button(btn_frame, text="Pedido Restaurante", font=('Arial', 12, 'bold'),
-                 bg='#27ae60', fg='white', width=15, height=2,
+                 bg='#2980b9', fg='white', width=15, height=2,
                  command=lambda: self.nueva_orden('restaurante')).pack(side='left', padx=10)
         
         tk.Button(btn_frame, text="Pedido Telefónico", font=('Arial', 12, 'bold'),
-                 bg='#f39c12', fg='white', width=15, height=2,
+                 bg='#5dade2', fg='white', width=15, height=2,
                  command=lambda: self.nueva_orden('telefonico')).pack(side='left', padx=10)
 
     def nueva_orden(self, tipo_orden):
@@ -189,72 +227,127 @@ class RestaurantPOS:
     def seleccionar_cliente(self):
         dialog = tk.Toplevel(self.root)
         dialog.title("Seleccionar Cliente")
-        dialog.geometry("500x400")
+        dialog.geometry("420x300")
+        dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
         
-        # Búsqueda por teléfono
-        search_frame = tk.Frame(dialog)
-        search_frame.pack(fill='x', padx=20, pady=20)
+        # Configurar color de fondo
+        dialog.configure(bg='#f8f9fa')
         
-        tk.Label(search_frame, text="Buscar por teléfono:").pack(side='left')
-        phone_entry = tk.Entry(search_frame)
-        phone_entry.pack(side='left', padx=10, fill='x', expand=True)
+        # Frame principal compacto
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=15, pady=15)
+        
+        tk.Label(main_frame, text="📞 BUSCAR CLIENTE", font=('Arial', 14, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,15))
+        
+        # Búsqueda por teléfono - más compacto
+        search_frame = tk.LabelFrame(main_frame, text="Buscar por Teléfono", font=('Arial', 11),
+                                    bg='#f8f9fa', fg='#2c3e50')
+        search_frame.pack(pady=(0,15), fill='x')
+        
+        entry_frame = tk.Frame(search_frame, bg='#f8f9fa')
+        entry_frame.pack(pady=10)
+        
+        tk.Label(entry_frame, text="📱", font=('Arial', 16), bg='#f8f9fa').pack(side='left', padx=5)
+        phone_entry = tk.Entry(entry_frame, font=('Arial', 12), width=15, relief='solid', bd=1)
+        phone_entry.pack(side='left', padx=5, fill='x', expand=True)
         
         def buscar_cliente():
             telefono = phone_entry.get().strip()
-            if telefono:
-                query = "SELECT * FROM clientes WHERE telefono = %s"
-                cliente = db.execute_one(query, (telefono,))
-                
-                if cliente:
-                    self.cliente_actual = cliente
-                    messagebox.showinfo("Cliente encontrado", f"Cliente: {cliente['nombre']}")
-                    dialog.destroy()
-                    self.show_orden_screen()
-                else:
-                    # Crear nuevo cliente
-                    self.crear_cliente_dialog(telefono, dialog)
+            if not telefono:
+                messagebox.showerror("Error", "Por favor ingrese un número telefónico")
+                phone_entry.focus()
+                return
+            
+            query = "SELECT * FROM clientes WHERE telefono = %s"
+            cliente = db.execute_one(query, (telefono,))
+            
+            if cliente:
+                self.cliente_actual = cliente
+                messagebox.showinfo("Cliente encontrado", 
+                                  f"Cliente: {cliente['nombre']}\nTeléfono: {cliente['telefono']}\nDirección: {cliente['direccion'] or 'No especificada'}")
+                dialog.destroy()
+                self.show_orden_screen()
             else:
-                messagebox.showerror("Error", "Por favor ingrese un teléfono")
+                response = messagebox.askyesno("Cliente no encontrado", 
+                                             f"No se encontró un cliente con el teléfono {telefono}\n\n¿Desea crear un nuevo cliente?")
+                if response:
+                    self.crear_cliente_dialog(telefono, dialog)
         
-        tk.Button(search_frame, text="Buscar", command=buscar_cliente).pack(side='right', padx=5)
-        phone_entry.bind('<Return>', lambda e: buscar_cliente())
+        # Botones - más compactos
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack(pady=(0,5), fill='x')
+        
+        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                 bg='#95a5a6', fg='white', width=10, height=1,
+                 command=dialog.destroy).pack(side='left', padx=5)
+        
+        tk.Button(button_frame, text="BUSCAR CLIENTE", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=15, height=1,
+                 command=buscar_cliente).pack(side='right', padx=5)
+        
         phone_entry.focus()
+        phone_entry.bind('<Return>', lambda e: buscar_cliente())
 
     def crear_cliente_dialog(self, telefono, parent_dialog):
         dialog = tk.Toplevel(self.root)
         dialog.title("Crear Nuevo Cliente")
-        dialog.geometry("400x300")
+        dialog.geometry("400x320")
+        dialog.resizable(False, False)
         dialog.transient(parent_dialog)
         dialog.grab_set()
         
-        tk.Label(dialog, text="Nuevo Cliente", font=('Arial', 14, 'bold')).pack(pady=20)
+        # Configurar color de fondo
+        dialog.configure(bg='#f8f9fa')
         
-        # Campos
-        fields_frame = tk.Frame(dialog)
-        fields_frame.pack(padx=20, pady=20)
+        # Frame principal compacto
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=15, pady=15)
         
-        tk.Label(fields_frame, text="Nombre:").grid(row=0, column=0, sticky='w', pady=5)
-        nombre_entry = tk.Entry(fields_frame, width=30)
-        nombre_entry.grid(row=0, column=1, pady=5, padx=10)
+        tk.Label(main_frame, text="👤 CREAR NUEVO CLIENTE", font=('Arial', 14, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,15))
         
-        tk.Label(fields_frame, text="Teléfono:").grid(row=1, column=0, sticky='w', pady=5)
-        telefono_entry = tk.Entry(fields_frame, width=30)
+        # Campos del formulario - más compactos
+        fields_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        fields_frame.pack(pady=(0,15), fill='x')
+        
+        # Nombre
+        tk.Label(fields_frame, text="Nombre completo:", font=('Arial', 11), 
+                bg='#f8f9fa', fg='#2c3e50').grid(row=0, column=0, sticky='w', pady=6)
+        nombre_entry = tk.Entry(fields_frame, width=20, font=('Arial', 11), relief='solid', bd=1)
+        nombre_entry.grid(row=0, column=1, pady=6, padx=8, sticky='ew')
+        
+        # Teléfono
+        tk.Label(fields_frame, text="Teléfono:", font=('Arial', 11), 
+                bg='#f8f9fa', fg='#2c3e50').grid(row=1, column=0, sticky='w', pady=6)
+        telefono_entry = tk.Entry(fields_frame, width=20, font=('Arial', 11), relief='solid', bd=1)
         telefono_entry.insert(0, telefono)
-        telefono_entry.grid(row=1, column=1, pady=5, padx=10)
+        telefono_entry.grid(row=1, column=1, pady=6, padx=8, sticky='ew')
         
-        tk.Label(fields_frame, text="Dirección:").grid(row=2, column=0, sticky='w', pady=5)
-        direccion_entry = tk.Entry(fields_frame, width=30)
-        direccion_entry.grid(row=2, column=1, pady=5, padx=10)
+        # Dirección
+        tk.Label(fields_frame, text="Dirección:", font=('Arial', 11), 
+                bg='#f8f9fa', fg='#2c3e50').grid(row=2, column=0, sticky='w', pady=6)
+        direccion_entry = tk.Entry(fields_frame, width=20, font=('Arial', 11), relief='solid', bd=1)
+        direccion_entry.grid(row=2, column=1, pady=6, padx=8, sticky='ew')
+        
+        # Configurar grid
+        fields_frame.grid_columnconfigure(1, weight=1)
         
         def guardar_cliente():
             nombre = nombre_entry.get().strip()
             telefono = telefono_entry.get().strip()
             direccion = direccion_entry.get().strip()
             
-            if not nombre or not telefono:
-                messagebox.showerror("Error", "Nombre y teléfono son obligatorios")
+            if not nombre:
+                messagebox.showerror("Error", "El nombre es obligatorio")
+                nombre_entry.focus()
+                return
+            
+            if not telefono:
+                messagebox.showerror("Error", "El teléfono es obligatorio")
+                telefono_entry.focus()
                 return
             
             query = """
@@ -264,18 +357,31 @@ class RestaurantPOS:
             cliente_id = db.execute_one(query, (nombre, telefono, direccion))
             
             if cliente_id:
-                # Cargar cliente creado
                 query = "SELECT * FROM clientes WHERE id = %s"
                 self.cliente_actual = db.execute_one(query, (cliente_id,))
-                messagebox.showinfo("Éxito", "Cliente creado correctamente")
+                messagebox.showinfo("Éxito", f"Cliente '{nombre}' creado correctamente")
                 dialog.destroy()
                 parent_dialog.destroy()
                 self.show_orden_screen()
             else:
-                messagebox.showerror("Error", "No se pudo crear el cliente")
+                messagebox.showerror("Error", "No se pudo crear el cliente. Verifique que el teléfono no esté duplicado.")
         
-        tk.Button(dialog, text="Guardar Cliente", command=guardar_cliente).pack(pady=20)
+        # Botones - más compactos
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack(pady=(0,5), fill='x')
+        
+        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                 bg='#95a5a6', fg='white', width=10, height=1,
+                 command=dialog.destroy).pack(side='left', padx=5)
+        
+        tk.Button(button_frame, text="GUARDAR CLIENTE", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=15, height=1,
+                 command=guardar_cliente).pack(side='right', padx=5)
+        
         nombre_entry.focus()
+        nombre_entry.bind('<Return>', lambda e: telefono_entry.focus())
+        telefono_entry.bind('<Return>', lambda e: direccion_entry.focus())
+        direccion_entry.bind('<Return>', lambda e: guardar_cliente())
 
     def show_orden_screen(self):
         self.clear_window()
@@ -412,10 +518,10 @@ class RestaurantPOS:
         btn_frame = tk.Frame(parent)
         btn_frame.pack(fill='x', padx=10, pady=20)
         
-        tk.Button(btn_frame, text="Eliminar Item", bg='#e74c3c', fg='white',
+        tk.Button(btn_frame, text="Eliminar Item", bg='#95a5a6', fg='white',
                  command=self.eliminar_item).pack(fill='x', pady=2)
         
-        tk.Button(btn_frame, text="Procesar Pago", bg='#27ae60', fg='white',
+        tk.Button(btn_frame, text="Procesar Pago", bg='#3498db', fg='white',
                  font=('Arial', 12, 'bold'), command=self.procesar_pago).pack(fill='x', pady=10)
         
         self.actualizar_resumen()
@@ -480,68 +586,114 @@ class RestaurantPOS:
     def show_payment_dialog(self, cliente_nombre=None):
         dialog = tk.Toplevel(self.root)
         dialog.title("Procesar Pago")
-        dialog.geometry("400x300")
+        dialog.geometry("420x400")
+        dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
         
-        # Total a pagar
-        tk.Label(dialog, text=f"TOTAL A PAGAR", font=('Arial', 16, 'bold')).pack(pady=20)
-        tk.Label(dialog, text=f"${self.orden_actual['total']:.2f}", 
-                font=('Arial', 24, 'bold'), fg='#27ae60').pack()
+        # Configurar color de fondo
+        dialog.configure(bg='#f8f9fa')
         
-        # Método de pago
-        payment_frame = tk.Frame(dialog)
-        payment_frame.pack(pady=20)
+        # Frame principal compacto
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=15, pady=15)
+        
+        # Total a pagar - más compacto
+        tk.Label(main_frame, text="TOTAL A PAGAR", font=('Arial', 14, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,5))
+        tk.Label(main_frame, text=f"${self.orden_actual['total']:.2f}", 
+                font=('Arial', 24, 'bold'), fg='#3498db', bg='#f8f9fa').pack(pady=(0,15))
+        
+        # Método de pago - más compacto
+        payment_frame = tk.LabelFrame(main_frame, text="Método de Pago", font=('Arial', 11), 
+                                     bg='#f8f9fa', fg='#2c3e50')
+        payment_frame.pack(pady=(0,10), fill='x')
         
         payment_method = tk.StringVar(value='efectivo')
         
-        tk.Radiobutton(payment_frame, text="Efectivo", variable=payment_method, 
-                      value='efectivo', font=('Arial', 12)).pack(side='left', padx=20)
-        tk.Radiobutton(payment_frame, text="Tarjeta", variable=payment_method, 
-                      value='tarjeta', font=('Arial', 12)).pack(side='left', padx=20)
+        radio_frame = tk.Frame(payment_frame, bg='#f8f9fa')
+        radio_frame.pack(pady=8)
         
-        # Monto pagado
-        amount_frame = tk.Frame(dialog)
-        amount_frame.pack(pady=20)
+        tk.Radiobutton(radio_frame, text="💵 Efectivo", variable=payment_method, 
+                      value='efectivo', font=('Arial', 11), bg='#f8f9fa').pack(side='left', padx=15)
+        tk.Radiobutton(radio_frame, text="💳 Tarjeta", variable=payment_method, 
+                      value='tarjeta', font=('Arial', 11), bg='#f8f9fa').pack(side='left', padx=15)
         
-        tk.Label(amount_frame, text="Monto pagado:", font=('Arial', 12)).pack()
-        amount_entry = tk.Entry(amount_frame, font=('Arial', 14), width=15)
-        amount_entry.pack(pady=5)
+        # Monto pagado - más compacto
+        amount_frame = tk.LabelFrame(main_frame, text="Monto Pagado", font=('Arial', 11), 
+                                    bg='#f8f9fa', fg='#2c3e50')
+        amount_frame.pack(pady=(0,10), fill='x')
+        
+        entry_frame = tk.Frame(amount_frame, bg='#f8f9fa')
+        entry_frame.pack(pady=8)
+        
+        tk.Label(entry_frame, text="$", font=('Arial', 16, 'bold'), bg='#f8f9fa').pack(side='left')
+        amount_entry = tk.Entry(entry_frame, font=('Arial', 16), width=8, justify='center',
+                               relief='solid', bd=1)
+        amount_entry.pack(side='left', padx=5)
         amount_entry.focus()
         
-        # Cambio
-        change_label = tk.Label(dialog, text="", font=('Arial', 14, 'bold'), fg='#3498db')
-        change_label.pack(pady=10)
+        # Cambio - más compacto
+        change_frame = tk.Frame(main_frame, bg='#e3f2fd', relief='solid', bd=1)
+        change_frame.pack(pady=(0,15), fill='x')
+        
+        change_label = tk.Label(change_frame, text="Ingrese el monto pagado", 
+                               font=('Arial', 12, 'bold'), fg='#3498db', bg='#e3f2fd')
+        change_label.pack(pady=8)
         
         def calculate_change():
             try:
-                amount = float(amount_entry.get())
-                change = amount - self.orden_actual['total']
-                if change >= 0:
-                    change_label.config(text=f"Cambio: ${change:.2f}")
+                amount_text = amount_entry.get().strip()
+                if amount_text:
+                    amount = float(amount_text)
+                    change = amount - self.orden_actual['total']
+                    if change >= 0:
+                        change_label.config(text=f"CAMBIO: ${change:.2f}", fg='#27ae60')
+                    elif change >= -0.01:
+                        change_label.config(text="MONTO EXACTO", fg='#27ae60')
+                    else:
+                        change_label.config(text="❌ MONTO INSUFICIENTE", fg='#e74c3c')
                 else:
-                    change_label.config(text="Monto insuficiente", fg='#e74c3c')
-            except:
-                change_label.config(text="")
+                    change_label.config(text="Ingrese el monto pagado", fg='#3498db')
+            except ValueError:
+                change_label.config(text="❌ MONTO INVÁLIDO", fg='#e74c3c')
         
         amount_entry.bind('<KeyRelease>', lambda e: calculate_change())
         
         def confirmar_pago():
             try:
-                amount = float(amount_entry.get())
-                if amount < self.orden_actual['total']:
-                    messagebox.showerror("Error", "Monto insuficiente")
+                amount_text = amount_entry.get().strip()
+                if not amount_text:
+                    messagebox.showerror("Error", "Por favor ingrese el monto pagado")
+                    amount_entry.focus()
                     return
                 
-                # Crear orden en la base de datos
+                amount = float(amount_text)
+                if amount < self.orden_actual['total'] - 0.01:
+                    messagebox.showerror("Error", "Monto insuficiente")
+                    amount_entry.focus()
+                    return
+                
                 self.crear_orden_db(payment_method.get(), amount, cliente_nombre)
                 dialog.destroy()
                 
             except ValueError:
                 messagebox.showerror("Error", "Por favor ingrese un monto válido")
+                amount_entry.focus()
         
-        tk.Button(dialog, text="CONFIRMAR PAGO", font=('Arial', 12, 'bold'),
-                 bg='#27ae60', fg='white', command=confirmar_pago).pack(pady=20)
+        # Botones - más compactos
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack(pady=(0,5), fill='x')
+        
+        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                 bg='#95a5a6', fg='white', width=10, height=1,
+                 command=dialog.destroy).pack(side='left', padx=5)
+        
+        tk.Button(button_frame, text="CONFIRMAR PAGO", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=15, height=1,
+                 command=confirmar_pago).pack(side='right', padx=5)
+        
+        amount_entry.bind('<Return>', lambda e: confirmar_pago())
 
     def crear_orden_db(self, metodo_pago, monto_pagado, cliente_nombre=None):
         try:
@@ -670,21 +822,49 @@ class RestaurantPOS:
         
         dialog = tk.Toplevel(self.root)
         dialog.title("Arqueo de Caja")
-        dialog.geometry("300x200")
+        dialog.geometry("380x280")
+        dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
         
-        tk.Label(dialog, text="Retirar Efectivo", font=('Arial', 14, 'bold')).pack(pady=20)
+        # Configurar color de fondo
+        dialog.configure(bg='#f8f9fa')
         
-        tk.Label(dialog, text="Monto a retirar:").pack()
-        amount_entry = tk.Entry(dialog, font=('Arial', 12))
-        amount_entry.pack(pady=10)
+        # Frame principal compacto
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=15, pady=15)
+        
+        tk.Label(main_frame, text="💰 ARQUEO DE CAJA", font=('Arial', 14, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,8))
+        
+        tk.Label(main_frame, text="Retirar efectivo durante el turno", font=('Arial', 10), 
+                bg='#f8f9fa', fg='#7f8c8d').pack(pady=(0,15))
+        
+        # Frame para monto - más compacto
+        monto_frame = tk.LabelFrame(main_frame, text="Monto a Retirar", font=('Arial', 11),
+                                   bg='#f8f9fa', fg='#2c3e50')
+        monto_frame.pack(pady=(0,15), fill='x')
+        
+        entry_frame = tk.Frame(monto_frame, bg='#f8f9fa')
+        entry_frame.pack(pady=10)
+        
+        tk.Label(entry_frame, text="$", font=('Arial', 16, 'bold'), bg='#f8f9fa').pack(side='left')
+        amount_entry = tk.Entry(entry_frame, font=('Arial', 16), width=8, justify='center',
+                               relief='solid', bd=1)
+        amount_entry.pack(side='left', padx=5)
         
         def procesar_arqueo():
             try:
-                monto = float(amount_entry.get())
+                amount_text = amount_entry.get().strip()
+                if not amount_text:
+                    messagebox.showerror("Error", "Por favor ingrese el monto a retirar")
+                    amount_entry.focus()
+                    return
+                
+                monto = float(amount_text)
                 if monto <= 0:
                     messagebox.showerror("Error", "El monto debe ser mayor a 0")
+                    amount_entry.focus()
                     return
                 
                 query = """
@@ -696,15 +876,28 @@ class RestaurantPOS:
                 ))
                 
                 if result:
-                    messagebox.showinfo("Éxito", f"Arqueo de ${monto:.2f} registrado")
+                    messagebox.showinfo("Éxito", f"Arqueo registrado exitosamente\nMonto retirado: ${monto:.2f}")
                     dialog.destroy()
                 else:
                     messagebox.showerror("Error", "No se pudo registrar el arqueo")
             except ValueError:
                 messagebox.showerror("Error", "Por favor ingrese un monto válido")
+                amount_entry.focus()
         
-        tk.Button(dialog, text="Procesar Arqueo", command=procesar_arqueo).pack(pady=20)
+        # Botones - más compactos
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack(pady=(0,5), fill='x')
+        
+        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                 bg='#95a5a6', fg='white', width=10, height=1,
+                 command=dialog.destroy).pack(side='left', padx=5)
+        
+        tk.Button(button_frame, text="PROCESAR ARQUEO", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=15, height=1,
+                 command=procesar_arqueo).pack(side='right', padx=5)
+        
         amount_entry.focus()
+        amount_entry.bind('<Return>', lambda e: procesar_arqueo())
 
     def show_corte_caja(self):
         # Pedir credenciales de administrador
@@ -863,21 +1056,36 @@ DIFERENCIA: ${diferencia:.2f}
     def admin_login_dialog(self, title):
         dialog = tk.Toplevel(self.root)
         dialog.title(f"{title} - Login Administrador")
-        dialog.geometry("300x200")
+        dialog.geometry("350x250")
+        dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
         
+        # Configurar color de fondo
+        dialog.configure(bg='#f8f9fa')
+        
         result = None
         
-        tk.Label(dialog, text="Credenciales de Administrador", font=('Arial', 12, 'bold')).pack(pady=20)
+        # Frame principal compacto
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=15, pady=15)
         
-        tk.Label(dialog, text="Usuario:").pack()
-        user_entry = tk.Entry(dialog)
-        user_entry.pack(pady=2)
+        tk.Label(main_frame, text="🔐 CREDENCIALES DE ADMINISTRADOR", font=('Arial', 12, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,15))
         
-        tk.Label(dialog, text="Contraseña:").pack()
-        pass_entry = tk.Entry(dialog, show='*')
-        pass_entry.pack(pady=2)
+        # Campos
+        fields_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        fields_frame.pack(pady=(0,15))
+        
+        tk.Label(fields_frame, text="Usuario:", font=('Arial', 11), 
+                bg='#f8f9fa', fg='#2c3e50').grid(row=0, column=0, sticky='w', pady=6)
+        user_entry = tk.Entry(fields_frame, font=('Arial', 11), width=15, relief='solid', bd=1)
+        user_entry.grid(row=0, column=1, pady=6, padx=8)
+        
+        tk.Label(fields_frame, text="Contraseña:", font=('Arial', 11), 
+                bg='#f8f9fa', fg='#2c3e50').grid(row=1, column=0, sticky='w', pady=6)
+        pass_entry = tk.Entry(fields_frame, show='*', font=('Arial', 11), width=15, relief='solid', bd=1)
+        pass_entry.grid(row=1, column=1, pady=6, padx=8)
         
         def verificar():
             nonlocal result
@@ -896,9 +1104,22 @@ DIFERENCIA: ${diferencia:.2f}
             else:
                 messagebox.showerror("Error", "Credenciales incorrectas")
         
-        tk.Button(dialog, text="Verificar", command=verificar).pack(pady=20)
+        # Botones - más compactos
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack(pady=(0,5), fill='x')
+        
+        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                 bg='#95a5a6', fg='white', width=10, height=1,
+                 command=dialog.destroy).pack(side='left', padx=5)
+        
+        tk.Button(button_frame, text="VERIFICAR", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=12, height=1,
+                 command=verificar).pack(side='right', padx=5)
         
         user_entry.focus()
+        user_entry.bind('<Return>', lambda e: pass_entry.focus())
+        pass_entry.bind('<Return>', lambda e: verificar())
+        
         dialog.wait_window()
         return result
 
@@ -936,7 +1157,7 @@ DIFERENCIA: ${diferencia:.2f}
                  command=self.admin_menu).pack(side='left', padx=10)
         
         tk.Button(row1, text="Administrar Usuarios", font=('Arial', 12, 'bold'),
-                 bg='#9b59b6', fg='white', width=20, height=3,
+                 bg='#2980b9', fg='white', width=20, height=3,
                  command=self.admin_usuarios).pack(side='left', padx=10)
         
         # Fila 2
@@ -944,11 +1165,11 @@ DIFERENCIA: ${diferencia:.2f}
         row2.pack(pady=10)
         
         tk.Button(row2, text="Administrar Ventas", font=('Arial', 12, 'bold'),
-                 bg='#27ae60', fg='white', width=20, height=3,
+                 bg='#5dade2', fg='white', width=20, height=3,
                  command=self.admin_ventas).pack(side='left', padx=10)
         
         tk.Button(row2, text="Administrar Clientes", font=('Arial', 12, 'bold'),
-                 bg='#f39c12', fg='white', width=20, height=3,
+                 bg='#85c1e9', fg='white', width=20, height=3,
                  command=self.admin_clientes).pack(side='left', padx=10)
 
     def admin_menu(self):
