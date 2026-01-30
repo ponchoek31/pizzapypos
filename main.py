@@ -971,91 +971,186 @@ class RestaurantPOS:
     def procesar_corte_caja(self, admin_user):
         dialog = tk.Toplevel(self.root)
         dialog.title("Corte de Caja")
-        dialog.geometry("400x500")
+        dialog.geometry("420x350")
+        dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
         
-        tk.Label(dialog, text="Corte de Caja", font=('Arial', 16, 'bold')).pack(pady=20)
+        # Configurar color de fondo
+        dialog.configure(bg='#f8f9fa')
+        
+        # Frame principal
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=15, pady=15)
+        
+        tk.Label(main_frame, text="🏦 CORTE DE CAJA", font=('Arial', 14, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,15))
         
         # Paso 1: Cajero ingresa cantidades
-        step1_frame = tk.Frame(dialog)
-        step1_frame.pack(fill='x', padx=20, pady=10)
+        step1_frame = tk.LabelFrame(main_frame, text="Paso 1: Cantidades Finales", font=('Arial', 11),
+                                   bg='#f8f9fa', fg='#2c3e50')
+        step1_frame.pack(fill='x', pady=(0,15))
         
-        tk.Label(step1_frame, text="1. Cajero - Ingrese las cantidades finales:", 
-                font=('Arial', 12, 'bold')).pack(anchor='w')
+        tk.Label(step1_frame, text="Ingrese las cantidades que tiene al final del turno:", 
+                font=('Arial', 10), bg='#f8f9fa', fg='#7f8c8d').pack(pady=(10,15))
         
-        tk.Label(step1_frame, text="Efectivo en caja:").pack(anchor='w', pady=(10,0))
-        efectivo_entry = tk.Entry(step1_frame, font=('Arial', 12))
-        efectivo_entry.pack(fill='x', pady=2)
+        # Efectivo
+        efectivo_frame = tk.Frame(step1_frame, bg='#f8f9fa')
+        efectivo_frame.pack(fill='x', padx=10, pady=5)
         
-        tk.Label(step1_frame, text="Total tarjetas:").pack(anchor='w', pady=(5,0))
-        tarjeta_entry = tk.Entry(step1_frame, font=('Arial', 12))
-        tarjeta_entry.pack(fill='x', pady=2)
+        tk.Label(efectivo_frame, text="💵 Efectivo en caja:", font=('Arial', 11), 
+                bg='#f8f9fa').pack(side='left')
+        tk.Label(efectivo_frame, text="$", font=('Arial', 12, 'bold'), 
+                bg='#f8f9fa').pack(side='right', padx=(5,0))
+        efectivo_entry = tk.Entry(efectivo_frame, font=('Arial', 11), width=10, 
+                                 relief='solid', bd=1, justify='right')
+        efectivo_entry.pack(side='right')
         
-        warning_label = tk.Label(step1_frame, 
-                               text="⚠️ Precaución: Cualquier faltante será cobrado",
-                               font=('Arial', 10), fg='#e74c3c')
-        warning_label.pack(pady=10)
+        # Tarjeta
+        tarjeta_frame = tk.Frame(step1_frame, bg='#f8f9fa')
+        tarjeta_frame.pack(fill='x', padx=10, pady=5)
+        
+        tk.Label(tarjeta_frame, text="💳 Total tarjetas:", font=('Arial', 11), 
+                bg='#f8f9fa').pack(side='left')
+        tk.Label(tarjeta_frame, text="$", font=('Arial', 12, 'bold'), 
+                bg='#f8f9fa').pack(side='right', padx=(5,0))
+        tarjeta_entry = tk.Entry(tarjeta_frame, font=('Arial', 11), width=10, 
+                                relief='solid', bd=1, justify='right')
+        tarjeta_entry.pack(side='right')
+        
+        # Advertencia
+        warning_frame = tk.Frame(step1_frame, bg='#fff2cd', relief='solid', bd=1)
+        warning_frame.pack(fill='x', padx=10, pady=(15,10))
+        
+        warning_label = tk.Label(warning_frame, 
+                               text="⚠️ PRECAUCIÓN: Cualquier faltante será cobrado",
+                               font=('Arial', 10, 'bold'), bg='#fff2cd', fg='#856404')
+        warning_label.pack(pady=8)
         
         def paso2():
             try:
-                efectivo = float(efectivo_entry.get())
-                tarjeta = float(tarjeta_entry.get())
+                efectivo_text = efectivo_entry.get().strip()
+                tarjeta_text = tarjeta_entry.get().strip()
+                
+                if not efectivo_text:
+                    messagebox.showerror("Error", "Por favor ingrese el monto de efectivo")
+                    efectivo_entry.focus()
+                    return
+                
+                if not tarjeta_text:
+                    messagebox.showerror("Error", "Por favor ingrese el monto de tarjetas")
+                    tarjeta_entry.focus()
+                    return
+                
+                efectivo = float(efectivo_text)
+                tarjeta = float(tarjeta_text)
+                
+                if efectivo < 0:
+                    messagebox.showerror("Error", "El monto de efectivo no puede ser negativo")
+                    efectivo_entry.focus()
+                    return
+                
+                if tarjeta < 0:
+                    messagebox.showerror("Error", "El monto de tarjetas no puede ser negativo")
+                    tarjeta_entry.focus()
+                    return
+                
+                print(f"DEBUG: Procediendo a paso 2 con efectivo: {efectivo}, tarjeta: {tarjeta}")
                 self.show_corte_paso2(dialog, admin_user, efectivo, tarjeta)
+                
             except ValueError:
-                messagebox.showerror("Error", "Por favor ingrese montos válidos")
+                messagebox.showerror("Error", "Por favor ingrese montos válidos (solo números)")
         
-        tk.Button(step1_frame, text="Continuar", bg='#3498db', fg='white',
-                 command=paso2).pack(pady=20)
+        # Botones
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack(fill='x', pady=(0,5))
+        
+        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                 bg='#95a5a6', fg='white', width=12, height=1,
+                 command=dialog.destroy).pack(side='left', padx=5)
+        
+        tk.Button(button_frame, text="CONTINUAR", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=12, height=1,
+                 command=paso2).pack(side='right', padx=5)
         
         efectivo_entry.focus()
+        efectivo_entry.bind('<Return>', lambda e: tarjeta_entry.focus())
+        tarjeta_entry.bind('<Return>', lambda e: paso2())
 
     def show_corte_paso2(self, parent_dialog, admin_user, efectivo_cajero, tarjeta_cajero):
         parent_dialog.destroy()
         
         dialog = tk.Toplevel(self.root)
         dialog.title("Corte de Caja - Confirmación")
-        dialog.geometry("500x600")
+        dialog.geometry("520x650")
+        dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
         
-        tk.Label(dialog, text="Confirmación de Corte", font=('Arial', 16, 'bold')).pack(pady=20)
+        # Configurar color de fondo
+        dialog.configure(bg='#f8f9fa')
         
-        # Calcular totales esperados
-        # Obtener total de ventas
-        query = """
-        SELECT 
-            COALESCE(SUM(CASE WHEN metodo_pago = 'efectivo' THEN total ELSE 0 END), 0) as ventas_efectivo,
-            COALESCE(SUM(CASE WHEN metodo_pago = 'tarjeta' THEN total ELSE 0 END), 0) as ventas_tarjeta,
-            COALESCE(SUM(total), 0) as total_ventas
-        FROM ordenes 
-        WHERE turno_id = %s
-        """
-        ventas = db.execute_one(query, (auth.current_turno['id'],))
+        # Frame principal
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=15, pady=15)
         
-        # Obtener arqueos
-        query = "SELECT COALESCE(SUM(monto), 0) as total_arqueos FROM arqueos WHERE turno_id = %s"
-        arqueos_result = db.execute_one(query, (auth.current_turno['id'],))
-        total_arqueos = arqueos_result['total_arqueos'] if arqueos_result else 0
+        tk.Label(main_frame, text="💰 CONFIRMACIÓN DE CORTE", font=('Arial', 14, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,15))
         
-        # Calcular esperados
-        efectivo_esperado = auth.current_turno['fondo_inicial'] + ventas['ventas_efectivo'] - total_arqueos
-        tarjeta_esperada = ventas['ventas_tarjeta']
-        total_esperado = efectivo_esperado + tarjeta_esperada
-        total_real = efectivo_cajero + tarjeta_cajero
-        diferencia = total_esperado - total_real
-        
-        # Mostrar resumen
-        info_frame = tk.Frame(dialog)
-        info_frame.pack(fill='x', padx=20, pady=10)
-        
-        tk.Label(info_frame, text="RESUMEN DEL TURNO", font=('Arial', 14, 'bold')).pack()
-        
-        # Tabla de información
-        info_text = f"""
-Fondo inicial: ${auth.current_turno['fondo_inicial']:.2f}
-Ventas efectivo: ${ventas['ventas_efectivo']:.2f}
-Ventas tarjeta: ${ventas['ventas_tarjeta']:.2f}
+        try:
+            print("DEBUG: Iniciando cálculo de corte de caja")
+            print(f"DEBUG: Turno ID: {auth.current_turno['id'] if auth.current_turno else 'None'}")
+            
+            # Calcular totales esperados - convertir todo a float
+            # Obtener total de ventas
+            query = """
+            SELECT 
+                COALESCE(SUM(CASE WHEN metodo_pago = 'efectivo' THEN total ELSE 0 END), 0) as ventas_efectivo,
+                COALESCE(SUM(CASE WHEN metodo_pago = 'tarjeta' THEN total ELSE 0 END), 0) as ventas_tarjeta,
+                COALESCE(SUM(total), 0) as total_ventas
+            FROM ordenes 
+            WHERE turno_id = %s
+            """
+            ventas = db.execute_one(query, (auth.current_turno['id'],))
+            print(f"DEBUG: Ventas obtenidas: {ventas}")
+            
+            # Convertir a float para evitar problemas de tipo
+            ventas_efectivo = float(ventas['ventas_efectivo']) if ventas else 0.0
+            ventas_tarjeta = float(ventas['ventas_tarjeta']) if ventas else 0.0
+            total_ventas = float(ventas['total_ventas']) if ventas else 0.0
+            
+            # Obtener arqueos
+            query = "SELECT COALESCE(SUM(monto), 0) as total_arqueos FROM arqueos WHERE turno_id = %s"
+            arqueos_result = db.execute_one(query, (auth.current_turno['id'],))
+            total_arqueos = float(arqueos_result['total_arqueos']) if arqueos_result else 0.0
+            
+            print(f"DEBUG: Arqueos: {total_arqueos}")
+            
+            # Obtener fondo inicial y convertir a float
+            fondo_inicial = float(auth.current_turno['fondo_inicial'])
+            print(f"DEBUG: Fondo inicial: {fondo_inicial}")
+            
+            # Calcular esperados
+            efectivo_esperado = fondo_inicial + ventas_efectivo - total_arqueos
+            tarjeta_esperada = ventas_tarjeta
+            total_esperado = efectivo_esperado + tarjeta_esperada
+            total_real = efectivo_cajero + tarjeta_cajero
+            diferencia = total_esperado - total_real
+            
+            print(f"DEBUG: Cálculos - Efectivo esperado: {efectivo_esperado}, Tarjeta esperada: {tarjeta_esperada}")
+            print(f"DEBUG: Total esperado: {total_esperado}, Total real: {total_real}, Diferencia: {diferencia}")
+            
+            # Mostrar resumen
+            info_frame = tk.LabelFrame(main_frame, text="Resumen del Turno", font=('Arial', 12), 
+                                     bg='#f8f9fa', fg='#2c3e50')
+            info_frame.pack(fill='both', expand=True, pady=(0,15))
+            
+            # Crear texto del resumen
+            info_text = f"""INFORMACIÓN DEL TURNO:
+Turno #{auth.current_turno['id']}
+Fondo inicial: ${fondo_inicial:.2f}
+Ventas efectivo: ${ventas_efectivo:.2f}
+Ventas tarjeta: ${ventas_tarjeta:.2f}
 Total arqueos: ${total_arqueos:.2f}
 
 CANTIDADES ESPERADAS:
@@ -1068,51 +1163,93 @@ Efectivo reportado: ${efectivo_cajero:.2f}
 Tarjeta reportada: ${tarjeta_cajero:.2f}
 Total reportado: ${total_real:.2f}
 
-DIFERENCIA: ${diferencia:.2f}
-"""
-        
-        text_widget = tk.Text(info_frame, height=15, width=50, font=('Arial', 10))
-        text_widget.insert('1.0', info_text)
-        text_widget.config(state='disabled')
-        text_widget.pack(pady=10)
-        
-        # Pedir confirmación del administrador
-        admin_frame = tk.Frame(dialog)
-        admin_frame.pack(fill='x', padx=20, pady=10)
-        
-        tk.Label(admin_frame, text="Administrador - Confirme con su contraseña:", 
-                font=('Arial', 12, 'bold')).pack(anchor='w')
-        
-        admin_pass_entry = tk.Entry(admin_frame, show='*', font=('Arial', 12))
-        admin_pass_entry.pack(fill='x', pady=5)
-        
-        def finalizar_corte():
-            # Verificar contraseña del administrador nuevamente
-            query = "SELECT * FROM usuarios WHERE id = %s AND password = %s"
-            admin_check = db.execute_one(query, (admin_user['id'], admin_pass_entry.get()))
-            
-            if not admin_check:
-                messagebox.showerror("Error", "Contraseña de administrador incorrecta")
-                return
-            
-            # Cerrar turno
-            if auth.cerrar_turno(efectivo_cajero, tarjeta_cajero):
-                # Imprimir corte
-                corte_path = printer.print_corte_caja(auth.current_turno['id'] if auth.current_turno else None)
-                
-                messagebox.showinfo("Éxito", "Corte de caja realizado correctamente")
-                dialog.destroy()
-                
-                # Hacer logout después del corte
-                auth.logout()
-                self.show_login()
+DIFERENCIA: ${diferencia:.2f}"""
+
+            if diferencia > 0.01:
+                info_text += f"\n\n⚠️ FALTANTE DE: ${diferencia:.2f}"
+            elif diferencia < -0.01:
+                info_text += f"\n\n✅ SOBRANTE DE: ${abs(diferencia):.2f}"
             else:
-                messagebox.showerror("Error", "No se pudo procesar el corte de caja")
-        
-        tk.Button(admin_frame, text="FINALIZAR CORTE", bg='#e74c3c', fg='white',
-                 font=('Arial', 12, 'bold'), command=finalizar_corte).pack(pady=20)
-        
-        admin_pass_entry.focus()
+                info_text += f"\n\n✅ CORTE CUADRADO"
+            
+            text_widget = tk.Text(info_frame, height=18, width=55, font=('Arial', 10),
+                                 wrap=tk.WORD, relief='solid', bd=1)
+            text_widget.insert('1.0', info_text)
+            text_widget.config(state='disabled')
+            text_widget.pack(padx=10, pady=10, fill='both', expand=True)
+            
+            # Pedir confirmación del administrador
+            admin_frame = tk.LabelFrame(main_frame, text="Confirmación de Administrador", font=('Arial', 11),
+                                       bg='#f8f9fa', fg='#2c3e50')
+            admin_frame.pack(fill='x', pady=(0,10))
+            
+            tk.Label(admin_frame, text="Contraseña de administrador:", font=('Arial', 10), 
+                    bg='#f8f9fa').pack(anchor='w', padx=10, pady=(10,2))
+            
+            admin_pass_entry = tk.Entry(admin_frame, show='*', font=('Arial', 11), relief='solid', bd=1)
+            admin_pass_entry.pack(fill='x', padx=10, pady=(0,10))
+            
+            def finalizar_corte():
+                try:
+                    # Verificar contraseña del administrador nuevamente
+                    query = "SELECT * FROM usuarios WHERE id = %s AND password = %s"
+                    admin_check = db.execute_one(query, (admin_user['id'], admin_pass_entry.get()))
+                    
+                    if not admin_check:
+                        messagebox.showerror("Error", "Contraseña de administrador incorrecta")
+                        admin_pass_entry.focus()
+                        return
+                    
+                    print("DEBUG: Cerrando turno...")
+                    # Cerrar turno
+                    if auth.cerrar_turno(efectivo_cajero, tarjeta_cajero):
+                        # Imprimir corte
+                        turno_id = auth.current_turno['id'] if auth.current_turno else None
+                        print(f"DEBUG: Imprimiendo corte para turno: {turno_id}")
+                        
+                        if turno_id:
+                            corte_path = printer.print_corte_caja(turno_id)
+                        
+                        messagebox.showinfo("Éxito", "Corte de caja realizado correctamente")
+                        dialog.destroy()
+                        
+                        # Hacer logout después del corte
+                        auth.logout()
+                        self.show_login()
+                    else:
+                        messagebox.showerror("Error", "No se pudo procesar el corte de caja")
+                except Exception as e:
+                    print(f"ERROR en finalizar_corte: {e}")
+                    messagebox.showerror("Error", f"Error finalizando corte: {str(e)}")
+            
+            # Botones
+            button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+            button_frame.pack(fill='x', pady=(0,5))
+            
+            tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                     bg='#95a5a6', fg='white', width=12, height=1,
+                     command=dialog.destroy).pack(side='left', padx=5)
+            
+            tk.Button(button_frame, text="FINALIZAR CORTE", font=('Arial', 11, 'bold'),
+                     bg='#3498db', fg='white', width=15, height=1,
+                     command=finalizar_corte).pack(side='right', padx=5)
+            
+            admin_pass_entry.focus()
+            admin_pass_entry.bind('<Return>', lambda e: finalizar_corte())
+            
+        except Exception as e:
+            print(f"ERROR en show_corte_paso2: {e}")
+            error_frame = tk.Frame(main_frame, bg='#f8f9fa')
+            error_frame.pack(fill='both', expand=True)
+            
+            tk.Label(error_frame, text="❌ ERROR CALCULANDO CORTE", font=('Arial', 14, 'bold'),
+                    bg='#f8f9fa', fg='#e74c3c').pack(pady=20)
+            
+            tk.Label(error_frame, text=f"Error: {str(e)}", font=('Arial', 10),
+                    bg='#f8f9fa', fg='#7f8c8d', wraplength=400).pack(pady=10)
+            
+            tk.Button(error_frame, text="CERRAR", font=('Arial', 11, 'bold'),
+                     bg='#95a5a6', fg='white', command=dialog.destroy).pack(pady=20)
 
     def admin_login_dialog(self, title):
         dialog = tk.Toplevel(self.root)
