@@ -815,12 +815,21 @@ class RestaurantPOS:
     def show_historial(self):
         dialog = tk.Toplevel(self.root)
         dialog.title("Historial de Órdenes del Día")
-        dialog.geometry("800x600")
+        dialog.geometry("900x650")
+        dialog.resizable(True, True)
         dialog.transient(self.root)
+        
+        # Frame principal
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=15, pady=15)
+        
+        # Título
+        tk.Label(main_frame, text="📋 HISTORIAL DE ÓRDENES DEL DÍA", font=('Arial', 14, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,15))
         
         # Obtener órdenes del día
         query = """
-        SELECT o.*, c.nombre as cliente_nombre
+        SELECT o.*, c.nombre as cliente_nombre, c.telefono
         FROM ordenes o
         LEFT JOIN clientes c ON o.cliente_id = c.id
         WHERE DATE(o.fecha_orden) = CURDATE() AND o.turno_id = %s
@@ -828,52 +837,442 @@ class RestaurantPOS:
         """
         ordenes = db.execute_query(query, (auth.current_turno['id'],))
         
-        # Crear treeview
-        columns = ('numero_orden', 'cliente', 'tipo', 'total', 'hora')
-        tree = ttk.Treeview(dialog, columns=columns, show='headings', height=20)
+        # Frame para treeview
+        tree_frame = tk.Frame(main_frame)
+        tree_frame.pack(fill='both', expand=True, pady=(0,15))
+        
+        # Crear treeview con scrollbar
+        columns = ('numero_orden', 'cliente', 'tipo', 'total', 'pago', 'hora')
+        tree = ttk.Treeview(tree_frame, columns=columns, show='headings', height=15)
         
         tree.heading('numero_orden', text='# Orden')
         tree.heading('cliente', text='Cliente')
         tree.heading('tipo', text='Tipo')
         tree.heading('total', text='Total')
+        tree.heading('pago', text='Método Pago')
         tree.heading('hora', text='Hora')
         
-        tree.column('numero_orden', width=100)
-        tree.column('cliente', width=200)
+        tree.column('numero_orden', width=120)
+        tree.column('cliente', width=180)
         tree.column('tipo', width=100)
         tree.column('total', width=100)
-        tree.column('hora', width=100)
+        tree.column('pago', width=100)
+        tree.column('hora', width=80)
+        
+        # Scrollbar para treeview
+        scrollbar = ttk.Scrollbar(tree_frame, orient='vertical', command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
         
         # Llenar datos
         for orden in ordenes:
             tree.insert('', 'end', values=(
                 orden['numero_orden'],
-                orden['cliente_nombre'] or orden['cliente_nombre'] or 'N/A',
+                orden['cliente_nombre'] or orden['cliente_nombre'] or 'Cliente Mostrador',
                 orden['tipo_orden'].title(),
                 f"${orden['total']:.2f}",
+                orden['metodo_pago'].title(),
                 orden['fecha_orden'].strftime('%H:%M')
             ), tags=(orden['id'],))
         
-        tree.pack(fill='both', expand=True, padx=20, pady=20)
+        tree.pack(side='left', fill='both', expand=True)
+        scrollbar.pack(side='right', fill='y')
         
-        # Botones
-        btn_frame = tk.Frame(dialog)
-        btn_frame.pack(pady=10)
+        # Frame para botones
+        btn_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        btn_frame.pack(pady=(0,10))
+        
+        def get_selected_orden_id():
+            selection = tree.selection()
+            if selection:
+                return tree.item(selection[0])['tags'][0]
+            return None
+        
+        def preview_orden():
+            orden_id = get_selected_orden_id()
+            if not orden_id:
+                messagebox.showwarning("Advertencia", "Por favor seleccione una orden")
+                return
+            self.show_orden_preview(orden_id)
         
         def reimprimir_venta():
-            selection = tree.selection()
-            if selection:
-                orden_id = tree.item(selection[0])['tags'][0]
-                printer.print_customer_ticket(orden_id)
+            orden_id = get_selected_orden_id()
+            if not orden_id:
+                messagebox.showwarning("Advertencia", "Por favor seleccione una orden")
+                return
+            ticket_path = printer.print_customer_ticket(orden_id)
+            if ticket_path:
+                messagebox.showinfo("Éxito", f"Ticket reimpreso\nGuardado en: {ticket_path}")
         
         def reimprimir_comanda():
-            selection = tree.selection()
-            if selection:
-                orden_id = tree.item(selection[0])['tags'][0]
-                printer.print_kitchen_ticket(orden_id)
+            orden_id = get_selected_orden_id()
+            if not orden_id:
+                messagebox.showwarning("Advertencia", "Por favor seleccione una orden")
+                return
+            comanda_path = printer.print_kitchen_ticket(orden_id)
+            if comanda_path:
+                messagebox.showinfo("Éxito", f"Comanda reimpresa\nGuardada en: {comanda_path}")
         
-        tk.Button(btn_frame, text="Reimprimir Venta", command=reimprimir_venta).pack(side='left', padx=5)
-        tk.Button(btn_frame, text="Reimprimir Comanda", command=reimprimir_comanda).pack(side='left', padx=5)
+        # Botones organizados
+        tk.Button(btn_frame, text="👁️ PREVISUALIZAR", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=15, height=1,
+                 command=preview_orden).pack(side='left', padx=5)
+        
+        tk.Button(btn_frame, text="🎫 REIMPRIMIR VENTA", font=('Arial', 11, 'bold'),
+                 bg='#2980b9', fg='white', width=18, height=1,
+                 command=reimprimir_venta).pack(side='left', padx=5)
+        
+        tk.Button(btn_frame, text="📋 REIMPRIMIR COMANDA", font=('Arial', 11, 'bold'),
+                 bg='#5dade2', fg='white', width=20, height=1,
+                 command=reimprimir_comanda).pack(side='left', padx=5)
+        
+        def eliminar_orden():
+            orden_id = get_selected_orden_id()
+            if not orden_id:
+                messagebox.showwarning("Advertencia", "Por favor seleccione una orden")
+                return
+            
+            # Obtener información de la orden antes de eliminar
+            query = "SELECT numero_orden, total FROM ordenes WHERE id = %s"
+            orden_info = db.execute_one(query, (orden_id,))
+            if not orden_info:
+                messagebox.showerror("Error", "Orden no encontrada")
+                return
+            
+            # Confirmar acción
+            respuesta = messagebox.askyesno("Confirmar Eliminación", 
+                f"⚠️ ATENCIÓN: Esta acción es IRREVERSIBLE\n\n"
+                f"Orden: {orden_info['numero_orden']}\n"
+                f"Total: ${float(orden_info['total']):.2f}\n\n"
+                f"¿Está seguro de que desea eliminar esta orden?\n"
+                f"Se eliminará completamente del sistema y no aparecerá en reportes.")
+            
+            if not respuesta:
+                return
+            
+            # Pedir credenciales de administrador
+            admin_user = self.admin_login_dialog("Eliminar Orden")
+            if not admin_user:
+                return
+            
+            # Proceder con la eliminación
+            self.eliminar_orden_completa(orden_id, orden_info, dialog, tree)
+        
+        tk.Button(btn_frame, text="🗑️ ELIMINAR ORDEN", font=('Arial', 11, 'bold'),
+                 bg='#e74c3c', fg='white', width=18, height=1,
+                 command=eliminar_orden).pack(side='left', padx=5)
+        
+        tk.Button(btn_frame, text="CERRAR", font=('Arial', 11, 'bold'),
+                 bg='#95a5a6', fg='white', width=10, height=1,
+                 command=dialog.destroy).pack(side='right', padx=5)
+        
+    def show_orden_preview(self, orden_id):
+        try:
+            # Obtener información completa de la orden
+            query = """
+            SELECT o.*, c.nombre as cliente_nombre, c.telefono, c.direccion,
+                   u.nombre as cajero_nombre
+            FROM ordenes o
+            LEFT JOIN clientes c ON o.cliente_id = c.id
+            LEFT JOIN usuarios u ON o.cajero_id = u.id
+            WHERE o.id = %s
+            """
+            orden = db.execute_one(query, (orden_id,))
+            
+            if not orden:
+                messagebox.showerror("Error", "Orden no encontrada")
+                return
+            
+            # Obtener detalles de productos
+            query = """
+            SELECT od.*, p.nombre as producto_nombre
+            FROM orden_detalles od
+            JOIN productos p ON od.producto_id = p.id
+            WHERE od.orden_id = %s
+            ORDER BY od.id
+            """
+            detalles = db.execute_query(query, (orden_id,))
+            
+            # Crear ventana de previsualización
+            preview_dialog = tk.Toplevel(self.root)
+            preview_dialog.title(f"Previsualización - Orden {orden['numero_orden']}")
+            preview_dialog.geometry("500x650")
+            preview_dialog.resizable(False, False)
+            preview_dialog.transient(self.root)
+            preview_dialog.grab_set()
+            
+            # Configurar color de fondo
+            preview_dialog.configure(bg='#f8f9fa')
+            
+            # Frame principal con scroll
+            main_frame = tk.Frame(preview_dialog, bg='#f8f9fa')
+            main_frame.pack(fill='both', expand=True, padx=15, pady=15)
+            
+            # Título
+            tk.Label(main_frame, text="🎫 PREVISUALIZACIÓN DE ORDEN", font=('Arial', 14, 'bold'), 
+                    bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,15))
+            
+            # Frame para contenido con scroll
+            canvas = tk.Canvas(main_frame, bg='white', relief='solid', bd=1)
+            scrollbar = ttk.Scrollbar(main_frame, orient='vertical', command=canvas.yview)
+            scrollable_frame = tk.Frame(canvas, bg='white')
+            
+            scrollable_frame.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            )
+            
+            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            canvas.configure(yscrollcommand=scrollbar.set)
+            
+            # Contenido de la orden
+            content_frame = tk.Frame(scrollable_frame, bg='white')
+            content_frame.pack(fill='both', expand=True, padx=20, pady=20)
+            
+            # Información del encabezado
+            header_frame = tk.LabelFrame(content_frame, text="Información General", font=('Arial', 11, 'bold'),
+                                       bg='white', fg='#2c3e50')
+            header_frame.pack(fill='x', pady=(0,15))
+            
+            info_frame = tk.Frame(header_frame, bg='white')
+            info_frame.pack(fill='x', padx=10, pady=10)
+            
+            # Información en dos columnas
+            # Columna izquierda
+            left_col = tk.Frame(info_frame, bg='white')
+            left_col.pack(side='left', fill='both', expand=True)
+            
+            tk.Label(left_col, text=f"📋 Orden: {orden['numero_orden']}", font=('Arial', 11, 'bold'), 
+                    bg='white', fg='#3498db').pack(anchor='w', pady=2)
+            tk.Label(left_col, text=f"📅 Fecha: {orden['fecha_orden'].strftime('%d/%m/%Y %H:%M')}", 
+                    font=('Arial', 10), bg='white').pack(anchor='w', pady=1)
+            tk.Label(left_col, text=f"👤 Cajero: {orden['cajero_nombre']}", 
+                    font=('Arial', 10), bg='white').pack(anchor='w', pady=1)
+            tk.Label(left_col, text=f"🏷️ Tipo: {orden['tipo_orden'].title()}", 
+                    font=('Arial', 10), bg='white').pack(anchor='w', pady=1)
+            
+            # Columna derecha
+            right_col = tk.Frame(info_frame, bg='white')
+            right_col.pack(side='right', fill='both', expand=True)
+            
+            if orden['cliente_nombre'] and orden['cliente_nombre'] != 'Cliente Mostrador':
+                tk.Label(right_col, text=f"👥 Cliente: {orden['cliente_nombre']}", 
+                        font=('Arial', 10), bg='white').pack(anchor='w', pady=1)
+                if orden['telefono']:
+                    tk.Label(right_col, text=f"📱 Tel: {orden['telefono']}", 
+                            font=('Arial', 10), bg='white').pack(anchor='w', pady=1)
+                if orden['direccion']:
+                    tk.Label(right_col, text=f"📍 Dir: {orden['direccion']}", 
+                            font=('Arial', 10), bg='white', wraplength=200).pack(anchor='w', pady=1)
+            else:
+                tk.Label(right_col, text="👥 Cliente: Mostrador", 
+                        font=('Arial', 10), bg='white').pack(anchor='w', pady=1)
+            
+            tk.Label(right_col, text=f"💳 Pago: {orden['metodo_pago'].title()}", 
+                    font=('Arial', 10), bg='white').pack(anchor='w', pady=1)
+            
+            # Productos
+            productos_frame = tk.LabelFrame(content_frame, text="Productos Ordenados", font=('Arial', 11, 'bold'),
+                                          bg='white', fg='#2c3e50')
+            productos_frame.pack(fill='x', pady=(0,15))
+            
+            # Headers de tabla
+            table_header = tk.Frame(productos_frame, bg='#3498db')
+            table_header.pack(fill='x', padx=10, pady=(10,0))
+            
+            tk.Label(table_header, text="Cant.", font=('Arial', 10, 'bold'), bg='#3498db', fg='white', width=6).pack(side='left')
+            tk.Label(table_header, text="Producto", font=('Arial', 10, 'bold'), bg='#3498db', fg='white', width=25).pack(side='left')
+            tk.Label(table_header, text="Precio", font=('Arial', 10, 'bold'), bg='#3498db', fg='white', width=10).pack(side='left')
+            tk.Label(table_header, text="Subtotal", font=('Arial', 10, 'bold'), bg='#3498db', fg='white', width=10).pack(side='left')
+            
+            # Productos
+            for i, detalle in enumerate(detalles):
+                bg_color = '#f8f9fa' if i % 2 == 0 else 'white'
+                product_row = tk.Frame(productos_frame, bg=bg_color)
+                product_row.pack(fill='x', padx=10)
+                
+                tk.Label(product_row, text=str(detalle['cantidad']), font=('Arial', 10), 
+                        bg=bg_color, width=6).pack(side='left', pady=2)
+                tk.Label(product_row, text=detalle['producto_nombre'], font=('Arial', 10), 
+                        bg=bg_color, width=25, anchor='w').pack(side='left', pady=2)
+                tk.Label(product_row, text=f"${float(detalle['precio_unitario']):.2f}", font=('Arial', 10), 
+                        bg=bg_color, width=10).pack(side='left', pady=2)
+                tk.Label(product_row, text=f"${float(detalle['subtotal']):.2f}", font=('Arial', 10), 
+                        bg=bg_color, width=10).pack(side='left', pady=2)
+            
+            # Total y pago
+            totales_frame = tk.LabelFrame(content_frame, text="Totales y Pago", font=('Arial', 11, 'bold'),
+                                        bg='white', fg='#2c3e50')
+            totales_frame.pack(fill='x', pady=(0,15))
+            
+            totales_content = tk.Frame(totales_frame, bg='white')
+            totales_content.pack(fill='x', padx=20, pady=15)
+            
+            # Total
+            total_frame = tk.Frame(totales_content, bg='#e8f5e8', relief='solid', bd=1)
+            total_frame.pack(fill='x', pady=2)
+            tk.Label(total_frame, text=f"💰 TOTAL: ${float(orden['total']):.2f}", 
+                    font=('Arial', 14, 'bold'), bg='#e8f5e8', fg='#27ae60').pack(pady=8)
+            
+            # Pago
+            tk.Label(totales_content, text=f"Método de pago: {orden['metodo_pago'].title()}", 
+                    font=('Arial', 11), bg='white').pack(anchor='w', pady=2)
+            tk.Label(totales_content, text=f"Monto pagado: ${float(orden['monto_pagado']):.2f}", 
+                    font=('Arial', 11), bg='white').pack(anchor='w', pady=2)
+            
+            if float(orden['cambio']) > 0:
+                tk.Label(totales_content, text=f"Cambio entregado: ${float(orden['cambio']):.2f}", 
+                        font=('Arial', 11), bg='white', fg='#3498db').pack(anchor='w', pady=2)
+            
+            # Empacar canvas y scrollbar
+            canvas.pack(side='left', fill='both', expand=True)
+            scrollbar.pack(side='right', fill='y')
+            
+            # Botón cerrar
+            tk.Button(main_frame, text="CERRAR", font=('Arial', 11, 'bold'),
+                     bg='#95a5a6', fg='white', width=15, height=1,
+                     command=preview_dialog.destroy).pack(pady=(10,0))
+            
+            # Configurar scroll con rueda del mouse
+            def _on_mousewheel(event):
+                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+            
+            # Limpiar binding cuando se cierre la ventana
+            def on_closing():
+                canvas.unbind_all("<MouseWheel>")
+                preview_dialog.destroy()
+            
+    def eliminar_orden_completa(self, orden_id, orden_info, parent_dialog, tree):
+        try:
+            print(f"DEBUG: Iniciando eliminación de orden {orden_id}")
+            
+            # Crear ventana de confirmación final
+            confirm_dialog = tk.Toplevel(self.root)
+            confirm_dialog.title("Confirmación Final - Eliminar Orden")
+            confirm_dialog.geometry("450x400")
+            confirm_dialog.resizable(False, False)
+            confirm_dialog.transient(parent_dialog)
+            confirm_dialog.grab_set()
+            
+            # Configurar color de fondo
+            confirm_dialog.configure(bg='#f8f9fa')
+            
+            # Frame principal
+            main_frame = tk.Frame(confirm_dialog, bg='#f8f9fa')
+            main_frame.pack(fill='both', expand=True, padx=15, pady=15)
+            
+            # Título de advertencia
+            tk.Label(main_frame, text="⚠️ ELIMINACIÓN DE ORDEN", font=('Arial', 14, 'bold'), 
+                    bg='#f8f9fa', fg='#e74c3c').pack(pady=(0,15))
+            
+            # Frame de advertencia
+            warning_frame = tk.LabelFrame(main_frame, text="ADVERTENCIA IMPORTANTE", font=('Arial', 11, 'bold'),
+                                        bg='#f8f9fa', fg='#e74c3c')
+            warning_frame.pack(fill='x', pady=(0,15))
+            
+            warning_text = """
+Esta acción eliminará COMPLETAMENTE la orden del sistema:
+
+• Se eliminará la orden principal
+• Se eliminarán todos los productos de la orden  
+• No aparecerá en ningún reporte o historial
+• No se podrá recuperar después de eliminar
+• Puede afectar los cálculos si ya se hizo corte de caja
+
+SOLO use esta función para corregir errores graves.
+            """
+            
+            tk.Label(warning_frame, text=warning_text, font=('Arial', 10), 
+                    bg='#f8f9fa', fg='#2c3e50', justify='left').pack(padx=10, pady=10)
+            
+            # Información de la orden
+            info_frame = tk.LabelFrame(main_frame, text="Información de la Orden", font=('Arial', 11, 'bold'),
+                                     bg='#f8f9fa', fg='#2c3e50')
+            info_frame.pack(fill='x', pady=(0,15))
+            
+            info_content = tk.Frame(info_frame, bg='#f8f9fa')
+            info_content.pack(fill='x', padx=10, pady=10)
+            
+            tk.Label(info_content, text=f"📋 Orden: {orden_info['numero_orden']}", 
+                    font=('Arial', 11, 'bold'), bg='#f8f9fa', fg='#3498db').pack(anchor='w', pady=2)
+            tk.Label(info_content, text=f"💰 Total: ${float(orden_info['total']):.2f}", 
+                    font=('Arial', 11), bg='#f8f9fa').pack(anchor='w', pady=2)
+            tk.Label(info_content, text=f"👤 Turno: #{auth.current_turno['id'] if auth.current_turno else 'N/A'}", 
+                    font=('Arial', 11), bg='#f8f9fa').pack(anchor='w', pady=2)
+            
+            # Razón de eliminación
+            reason_frame = tk.LabelFrame(main_frame, text="Razón de Eliminación (Obligatorio)", font=('Arial', 11, 'bold'),
+                                       bg='#f8f9fa', fg='#2c3e50')
+            reason_frame.pack(fill='x', pady=(0,15))
+            
+            reason_entry = tk.Text(reason_frame, height=3, font=('Arial', 10), relief='solid', bd=1)
+            reason_entry.pack(fill='x', padx=10, pady=10)
+            reason_entry.insert('1.0', 'Motivo: ')
+            
+            def ejecutar_eliminacion():
+                reason = reason_entry.get('1.0', tk.END).strip()
+                if len(reason) < 10 or reason == 'Motivo:':
+                    messagebox.showerror("Error", "Por favor proporcione una razón detallada para la eliminación (mínimo 10 caracteres)")
+                    reason_entry.focus()
+                    return
+                
+                try:
+                    print(f"DEBUG: Eliminando orden {orden_id} - Razón: {reason}")
+                    
+                    # Iniciar transacción para eliminar todo
+                    # Primero eliminar detalles de la orden
+                    query = "DELETE FROM orden_detalles WHERE orden_id = %s"
+                    result_detalles = db.execute_query(query, (orden_id,))
+                    print(f"DEBUG: Detalles eliminados: {result_detalles}")
+                    
+                    # Luego eliminar la orden principal
+                    query = "DELETE FROM ordenes WHERE id = %s"
+                    result_orden = db.execute_query(query, (orden_id,))
+                    print(f"DEBUG: Orden eliminada: {result_orden}")
+                    
+                    if result_orden:
+                        # Registrar la eliminación en un log (opcional - podrías crear tabla de auditoría)
+                        print(f"AUDIT: Orden {orden_info['numero_orden']} eliminada por admin {auth.current_user['nombre']} - Razón: {reason}")
+                        
+                        messagebox.showinfo("Éxito", 
+                            f"Orden {orden_info['numero_orden']} eliminada exitosamente\n\n"
+                            f"La orden ya no aparecerá en reportes ni historiales.")
+                        
+                        # Cerrar diálogos
+                        confirm_dialog.destroy()
+                        
+                        # Actualizar el historial eliminando la fila
+                        selection = tree.selection()
+                        if selection:
+                            tree.delete(selection[0])
+                    else:
+                        messagebox.showerror("Error", "No se pudo eliminar la orden de la base de datos")
+                        
+                except Exception as e:
+                    print(f"ERROR eliminando orden: {e}")
+                    messagebox.showerror("Error", f"Error eliminando orden: {str(e)}")
+            
+            def cancelar_eliminacion():
+                confirm_dialog.destroy()
+            
+            # Botones
+            button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+            button_frame.pack(fill='x', pady=(0,5))
+            
+            tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                     bg='#95a5a6', fg='white', width=12, height=1,
+                     command=cancelar_eliminacion).pack(side='left', padx=5)
+            
+            tk.Button(button_frame, text="⚠️ ELIMINAR DEFINITIVAMENTE", font=('Arial', 11, 'bold'),
+                     bg='#e74c3c', fg='white', width=25, height=1,
+                     command=ejecutar_eliminacion).pack(side='right', padx=5)
+            
+            reason_entry.focus()
+            reason_entry.mark_set(tk.INSERT, '1.8')  # Posicionar cursor después de "Motivo: "
+            
+        except Exception as e:
+            print(f"ERROR en eliminar_orden_completa: {e}")
+            messagebox.showerror("Error", f"Error preparando eliminación: {str(e)}")
 
     def show_arqueo(self):
         # Pedir credenciales de administrador
