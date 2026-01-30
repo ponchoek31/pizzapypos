@@ -531,16 +531,19 @@ class RestaurantPOS:
         for item in self.orden_actual['items']:
             if item['id'] == producto['id']:
                 item['cantidad'] += 1
-                item['subtotal'] = item['cantidad'] * item['precio']
+                # Asegurar que el precio sea float
+                precio_float = float(producto['precio'])
+                item['subtotal'] = item['cantidad'] * precio_float
                 break
         else:
-            # Agregar nuevo item
+            # Agregar nuevo item - convertir precio a float
+            precio_float = float(producto['precio'])
             self.orden_actual['items'].append({
                 'id': producto['id'],
                 'nombre': producto['nombre'],
-                'precio': producto['precio'],
+                'precio': precio_float,
                 'cantidad': 1,
-                'subtotal': producto['precio']
+                'subtotal': precio_float
             })
         
         self.actualizar_resumen()
@@ -653,7 +656,9 @@ class RestaurantPOS:
                 amount_text = amount_entry.get().strip()
                 if amount_text:
                     amount = float(amount_text)
-                    change = amount - self.orden_actual['total']
+                    # Convertir total a float para evitar problemas de tipo
+                    total_orden = float(self.orden_actual['total'])
+                    change = amount - total_orden
                     if change >= 0:
                         change_label.config(text=f"CAMBIO: ${change:.2f}", fg='#27ae60')
                     elif change >= -0.01:
@@ -664,6 +669,9 @@ class RestaurantPOS:
                     change_label.config(text="Ingrese el monto pagado", fg='#3498db')
             except ValueError:
                 change_label.config(text="❌ MONTO INVÁLIDO", fg='#e74c3c')
+            except Exception as e:
+                print(f"ERROR en calculate_change: {e}")
+                change_label.config(text="❌ ERROR", fg='#e74c3c')
         
         amount_entry.bind('<KeyRelease>', lambda e: calculate_change())
         
@@ -676,7 +684,10 @@ class RestaurantPOS:
                     return
                 
                 amount = float(amount_text)
-                if amount < self.orden_actual['total'] - 0.01:
+                # Convertir total a float para la comparación
+                total_orden = float(self.orden_actual['total'])
+                
+                if amount < total_orden - 0.01:
                     messagebox.showerror("Error", "Monto insuficiente")
                     amount_entry.focus()
                     return
@@ -725,8 +736,13 @@ class RestaurantPOS:
             numero_orden = f"ORD{int(time.time())}"
             print(f"DEBUG: Número de orden generado: {numero_orden}")
             
+            # Convertir a float para evitar problemas de tipo Decimal
+            total_orden = float(self.orden_actual['total'])
+            monto_pagado_float = float(monto_pagado)
+            
             # Calcular cambio
-            cambio = monto_pagado - self.orden_actual['total']
+            cambio = monto_pagado_float - total_orden
+            print(f"DEBUG: Cálculo - Total: {total_orden}, Pagado: {monto_pagado_float}, Cambio: {cambio}")
             
             # Cliente ID
             cliente_id = None
@@ -747,8 +763,8 @@ class RestaurantPOS:
             """
             valores = (
                 numero_orden, cliente_id, nombre_final, self.tipo_orden,
-                self.orden_actual['total'], self.orden_actual['total'],
-                metodo_pago, monto_pagado, cambio,
+                total_orden, total_orden,
+                metodo_pago, monto_pagado_float, cambio,
                 auth.current_turno['id'], auth.current_user['id']
             )
             print(f"DEBUG: Valores para inserción: {valores}")
@@ -762,12 +778,17 @@ class RestaurantPOS:
             # Crear detalles de la orden
             for i, item in enumerate(self.orden_actual['items']):
                 print(f"DEBUG: Insertando item {i+1}: {item['nombre']}")
+                
+                # Convertir precios a float también
+                precio_unitario = float(item['precio'])
+                subtotal_item = float(item['subtotal'])
+                
                 query = """
                 INSERT INTO orden_detalles (orden_id, producto_id, cantidad, precio_unitario, subtotal)
                 VALUES (%s, %s, %s, %s, %s)
                 """
                 detalle_result = db.execute_one(query, (
-                    orden_id, item['id'], item['cantidad'], item['precio'], item['subtotal']
+                    orden_id, item['id'], item['cantidad'], precio_unitario, subtotal_item
                 ))
                 print(f"DEBUG: Detalle insertado con ID: {detalle_result}")
             
