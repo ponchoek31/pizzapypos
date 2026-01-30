@@ -1152,10 +1152,10 @@ class RestaurantPOS:
         try:
             print(f"DEBUG: Iniciando eliminación de orden {orden_id}")
             
-            # Crear ventana de confirmación final
+            # Crear ventana de confirmación final - MÁS GRANDE
             confirm_dialog = tk.Toplevel(self.root)
             confirm_dialog.title("Confirmación Final - Eliminar Orden")
-            confirm_dialog.geometry("450x400")
+            confirm_dialog.geometry("550x650")
             confirm_dialog.resizable(False, False)
             confirm_dialog.transient(parent_dialog)
             confirm_dialog.grab_set()
@@ -1163,62 +1163,126 @@ class RestaurantPOS:
             # Configurar color de fondo
             confirm_dialog.configure(bg='#f8f9fa')
             
-            # Frame principal
+            # Frame principal con scroll
             main_frame = tk.Frame(confirm_dialog, bg='#f8f9fa')
             main_frame.pack(fill='both', expand=True, padx=15, pady=15)
             
-            # Título de advertencia
-            tk.Label(main_frame, text="⚠️ ELIMINACIÓN DE ORDEN", font=('Arial', 14, 'bold'), 
-                    bg='#f8f9fa', fg='#e74c3c').pack(pady=(0,15))
+            # Título de advertencia - más compacto
+            tk.Label(main_frame, text="⚠️ ELIMINACIÓN DE ORDEN", font=('Arial', 16, 'bold'), 
+                    bg='#f8f9fa', fg='#e74c3c').pack(pady=(0,10))
             
-            # Frame de advertencia
-            warning_frame = tk.LabelFrame(main_frame, text="ADVERTENCIA IMPORTANTE", font=('Arial', 11, 'bold'),
+            # Canvas y scrollbar para contenido scrolleable
+            canvas = tk.Canvas(main_frame, bg='#f8f9fa', height=450)
+            scrollbar = ttk.Scrollbar(main_frame, orient='vertical', command=canvas.yview)
+            scrollable_frame = tk.Frame(canvas, bg='#f8f9fa')
+            
+            scrollable_frame.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            )
+            
+            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            canvas.configure(yscrollcommand=scrollbar.set)
+            
+            # Frame de advertencia - más compacto
+            warning_frame = tk.LabelFrame(scrollable_frame, text="ADVERTENCIA IMPORTANTE", font=('Arial', 12, 'bold'),
                                         bg='#f8f9fa', fg='#e74c3c')
-            warning_frame.pack(fill='x', pady=(0,15))
+            warning_frame.pack(fill='x', pady=(0,10), padx=10)
             
-            warning_text = """
-Esta acción eliminará COMPLETAMENTE la orden del sistema:
+            warning_text = """Esta acción eliminará COMPLETAMENTE la orden:
 
 • Se eliminará la orden principal
-• Se eliminarán todos los productos de la orden  
-• No aparecerá en ningún reporte o historial
-• No se podrá recuperar después de eliminar
-• Puede afectar los cálculos si ya se hizo corte de caja
+• Se eliminarán todos los productos  
+• No aparecerá en reportes ni historiales
+• No se podrá recuperar
+• Puede afectar cálculos de cortes
 
-SOLO use esta función para corregir errores graves.
-            """
+SOLO para corregir errores graves."""
             
             tk.Label(warning_frame, text=warning_text, font=('Arial', 10), 
-                    bg='#f8f9fa', fg='#2c3e50', justify='left').pack(padx=10, pady=10)
+                    bg='#f8f9fa', fg='#2c3e50', justify='left').pack(padx=10, pady=8)
             
-            # Información de la orden
-            info_frame = tk.LabelFrame(main_frame, text="Información de la Orden", font=('Arial', 11, 'bold'),
+            # Información de la orden - más compacto
+            info_frame = tk.LabelFrame(scrollable_frame, text="Información de la Orden", font=('Arial', 12, 'bold'),
                                      bg='#f8f9fa', fg='#2c3e50')
-            info_frame.pack(fill='x', pady=(0,15))
+            info_frame.pack(fill='x', pady=(0,10), padx=10)
             
             info_content = tk.Frame(info_frame, bg='#f8f9fa')
-            info_content.pack(fill='x', padx=10, pady=10)
+            info_content.pack(fill='x', padx=10, pady=8)
             
             tk.Label(info_content, text=f"📋 Orden: {orden_info['numero_orden']}", 
-                    font=('Arial', 11, 'bold'), bg='#f8f9fa', fg='#3498db').pack(anchor='w', pady=2)
+                    font=('Arial', 12, 'bold'), bg='#f8f9fa', fg='#3498db').pack(anchor='w', pady=1)
             tk.Label(info_content, text=f"💰 Total: ${float(orden_info['total']):.2f}", 
-                    font=('Arial', 11), bg='#f8f9fa').pack(anchor='w', pady=2)
+                    font=('Arial', 11), bg='#f8f9fa').pack(anchor='w', pady=1)
             tk.Label(info_content, text=f"👤 Turno: #{auth.current_turno['id'] if auth.current_turno else 'N/A'}", 
-                    font=('Arial', 11), bg='#f8f9fa').pack(anchor='w', pady=2)
+                    font=('Arial', 11), bg='#f8f9fa').pack(anchor='w', pady=1)
+            
+            # Obtener más información de la orden para mostrar
+            try:
+                query = """
+                SELECT o.*, c.nombre as cliente_nombre, u.nombre as cajero_nombre,
+                       COUNT(od.id) as total_productos
+                FROM ordenes o
+                LEFT JOIN clientes c ON o.cliente_id = c.id
+                LEFT JOIN usuarios u ON o.cajero_id = u.id
+                LEFT JOIN orden_detalles od ON o.id = od.orden_id
+                WHERE o.id = %s
+                GROUP BY o.id
+                """
+                orden_detalle = db.execute_one(query, (orden_id,))
+                
+                if orden_detalle:
+                    tk.Label(info_content, text=f"📅 Fecha: {orden_detalle['fecha_orden'].strftime('%d/%m/%Y %H:%M')}", 
+                            font=('Arial', 11), bg='#f8f9fa').pack(anchor='w', pady=1)
+                    tk.Label(info_content, text=f"🏷️ Tipo: {orden_detalle['tipo_orden'].title()}", 
+                            font=('Arial', 11), bg='#f8f9fa').pack(anchor='w', pady=1)
+                    tk.Label(info_content, text=f"👤 Cajero: {orden_detalle['cajero_nombre']}", 
+                            font=('Arial', 11), bg='#f8f9fa').pack(anchor='w', pady=1)
+                    if orden_detalle['cliente_nombre']:
+                        tk.Label(info_content, text=f"👥 Cliente: {orden_detalle['cliente_nombre']}", 
+                                font=('Arial', 11), bg='#f8f9fa').pack(anchor='w', pady=1)
+                    tk.Label(info_content, text=f"🛒 Productos: {orden_detalle['total_productos']}", 
+                            font=('Arial', 11), bg='#f8f9fa').pack(anchor='w', pady=1)
+                    tk.Label(info_content, text=f"💳 Pago: {orden_detalle['metodo_pago'].title()}", 
+                            font=('Arial', 11), bg='#f8f9fa').pack(anchor='w', pady=1)
+            except:
+                pass  # Si hay error obteniendo detalles, continúa con información básica
             
             # Razón de eliminación
-            reason_frame = tk.LabelFrame(main_frame, text="Razón de Eliminación (Obligatorio)", font=('Arial', 11, 'bold'),
+            reason_frame = tk.LabelFrame(scrollable_frame, text="Razón de Eliminación (Obligatorio)", font=('Arial', 12, 'bold'),
                                        bg='#f8f9fa', fg='#2c3e50')
-            reason_frame.pack(fill='x', pady=(0,15))
+            reason_frame.pack(fill='x', pady=(0,10), padx=10)
             
-            reason_entry = tk.Text(reason_frame, height=3, font=('Arial', 10), relief='solid', bd=1)
-            reason_entry.pack(fill='x', padx=10, pady=10)
+            tk.Label(reason_frame, text="Explique detalladamente por qué elimina esta orden:", 
+                    font=('Arial', 10), bg='#f8f9fa', fg='#7f8c8d').pack(padx=10, pady=(5,0))
+            
+            reason_entry = tk.Text(reason_frame, height=4, font=('Arial', 10), relief='solid', bd=1)
+            reason_entry.pack(fill='x', padx=10, pady=(5,10))
             reason_entry.insert('1.0', 'Motivo: ')
+            
+            # Confirmación final
+            final_frame = tk.LabelFrame(scrollable_frame, text="Confirmación Final", font=('Arial', 12, 'bold'),
+                                      bg='#f8f9fa', fg='#e74c3c')
+            final_frame.pack(fill='x', pady=(0,10), padx=10)
+            
+            confirm_text = """Al presionar "ELIMINAR DEFINITIVAMENTE":
+
+✓ Acepto que esta acción es IRREVERSIBLE
+✓ Entiendo que puede afectar reportes y cortes
+✓ Confirmo que es necesario eliminar esta orden
+✓ Asumo la responsabilidad de esta acción"""
+            
+            tk.Label(final_frame, text=confirm_text, font=('Arial', 10), 
+                    bg='#f8f9fa', fg='#2c3e50', justify='left').pack(padx=10, pady=8)
+            
+            # Empacar canvas y scrollbar
+            canvas.pack(side='left', fill='both', expand=True)
+            scrollbar.pack(side='right', fill='y')
             
             def ejecutar_eliminacion():
                 reason = reason_entry.get('1.0', tk.END).strip()
-                if len(reason) < 10 or reason == 'Motivo:':
-                    messagebox.showerror("Error", "Por favor proporcione una razón detallada para la eliminación (mínimo 10 caracteres)")
+                if len(reason) < 15 or reason == 'Motivo:' or 'Motivo:' in reason and len(reason) < 20:
+                    messagebox.showerror("Error", "Por favor proporcione una razón detallada para la eliminación\n(mínimo 15 caracteres útiles)")
                     reason_entry.focus()
                     return
                 
@@ -1237,12 +1301,13 @@ SOLO use esta función para corregir errores graves.
                     print(f"DEBUG: Orden eliminada: {result_orden}")
                     
                     if result_orden:
-                        # Registrar la eliminación en un log (opcional - podrías crear tabla de auditoría)
+                        # Registrar la eliminación en un log
                         print(f"AUDIT: Orden {orden_info['numero_orden']} eliminada por admin {auth.current_user['nombre']} - Razón: {reason}")
                         
                         messagebox.showinfo("Éxito", 
-                            f"Orden {orden_info['numero_orden']} eliminada exitosamente\n\n"
-                            f"La orden ya no aparecerá en reportes ni historiales.")
+                            f"✅ Orden {orden_info['numero_orden']} eliminada exitosamente\n\n"
+                            f"La orden ya no aparecerá en reportes ni historiales.\n"
+                            f"Acción registrada en logs del sistema.")
                         
                         # Cerrar diálogos
                         confirm_dialog.destroy()
@@ -1261,17 +1326,29 @@ SOLO use esta función para corregir errores graves.
             def cancelar_eliminacion():
                 confirm_dialog.destroy()
             
-            # Botones
+            # Botones fijos en la parte inferior
             button_frame = tk.Frame(main_frame, bg='#f8f9fa')
-            button_frame.pack(fill='x', pady=(0,5))
+            button_frame.pack(fill='x', pady=(10,0))
             
-            tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
-                     bg='#95a5a6', fg='white', width=12, height=1,
+            tk.Button(button_frame, text="CANCELAR", font=('Arial', 12, 'bold'),
+                     bg='#95a5a6', fg='white', width=15, height=1,
                      command=cancelar_eliminacion).pack(side='left', padx=5)
             
-            tk.Button(button_frame, text="⚠️ ELIMINAR DEFINITIVAMENTE", font=('Arial', 11, 'bold'),
+            tk.Button(button_frame, text="⚠️ ELIMINAR DEFINITIVAMENTE", font=('Arial', 12, 'bold'),
                      bg='#e74c3c', fg='white', width=25, height=1,
                      command=ejecutar_eliminacion).pack(side='right', padx=5)
+            
+            # Configurar scroll con rueda del mouse
+            def _on_mousewheel(event):
+                canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+            
+            # Limpiar binding cuando se cierre la ventana
+            def on_closing():
+                canvas.unbind_all("<MouseWheel>")
+                confirm_dialog.destroy()
+            
+            confirm_dialog.protocol("WM_DELETE_WINDOW", on_closing)
             
             reason_entry.focus()
             reason_entry.mark_set(tk.INSERT, '1.8')  # Posicionar cursor después de "Motivo: "
