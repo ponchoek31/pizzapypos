@@ -1870,7 +1870,711 @@ DIFERENCIA: ${diferencia:.2f}"""
                  command=self.admin_clientes).pack(side='left', padx=10)
 
     def admin_menu(self):
-        messagebox.showinfo("Información", "Funcionalidad en desarrollo")
+        self.show_menu_administration()
+    
+    def show_menu_administration(self):
+        self.clear_window()
+        
+        # Header
+        header_frame = tk.Frame(self.root, bg='#34495e', height=60)
+        header_frame.pack(fill='x')
+        header_frame.pack_propagate(False)
+        
+        user_info = f"Admin - Gestión de Menú: {auth.current_user['nombre']}"
+        tk.Label(header_frame, text=user_info, font=('Arial', 12, 'bold'), 
+                bg='#34495e', fg='white').pack(side='left', padx=20, pady=20)
+        
+        # Botón volver
+        tk.Button(header_frame, text="← Volver", font=('Arial', 10), 
+                 command=self.show_admin_menu).pack(side='right', padx=20, pady=15)
+        
+        # Frame principal
+        main_frame = tk.Frame(self.root, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        # Título
+        tk.Label(main_frame, text="🍽️ ADMINISTRACIÓN DE MENÚ", font=('Arial', 18, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
+        
+        # Frame para pestañas/secciones
+        notebook_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        notebook_frame.pack(fill='both', expand=True)
+        
+        # Botones de sección
+        section_frame = tk.Frame(notebook_frame, bg='#f8f9fa')
+        section_frame.pack(fill='x', pady=(0,10))
+        
+        self.current_section = tk.StringVar(value='categorias')
+        
+        tk.Radiobutton(section_frame, text="📁 CATEGORÍAS", variable=self.current_section, 
+                      value='categorias', font=('Arial', 12, 'bold'), bg='#f8f9fa',
+                      command=self.refresh_menu_content).pack(side='left', padx=20)
+        tk.Radiobutton(section_frame, text="🍕 PRODUCTOS", variable=self.current_section, 
+                      value='productos', font=('Arial', 12, 'bold'), bg='#f8f9fa',
+                      command=self.refresh_menu_content).pack(side='left', padx=20)
+        tk.Radiobutton(section_frame, text="📊 REPORTES", variable=self.current_section, 
+                      value='reportes', font=('Arial', 12, 'bold'), bg='#f8f9fa',
+                      command=self.refresh_menu_content).pack(side='left', padx=20)
+        
+        # Contenedor para el contenido dinámico
+        self.menu_content_frame = tk.Frame(notebook_frame, bg='#f8f9fa')
+        self.menu_content_frame.pack(fill='both', expand=True)
+        
+        # Cargar contenido inicial
+        self.refresh_menu_content()
+    
+    def refresh_menu_content(self):
+        # Limpiar contenido anterior
+        for widget in self.menu_content_frame.winfo_children():
+            widget.destroy()
+        
+        section = self.current_section.get()
+        
+        if section == 'categorias':
+            self.show_categorias_management()
+        elif section == 'productos':
+            self.show_productos_management()
+        elif section == 'reportes':
+            self.show_menu_reports()
+    
+    def show_categorias_management(self):
+        # Frame principal para categorías
+        frame = tk.Frame(self.menu_content_frame, bg='#f8f9fa')
+        frame.pack(fill='both', expand=True)
+        
+        # Botones de acción
+        action_frame = tk.Frame(frame, bg='#f8f9fa')
+        action_frame.pack(fill='x', pady=(0,15))
+        
+        tk.Button(action_frame, text="➕ NUEVA CATEGORÍA", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=18, height=1,
+                 command=self.nueva_categoria).pack(side='left', padx=5)
+        
+        tk.Button(action_frame, text="✏️ EDITAR", font=('Arial', 11, 'bold'),
+                 bg='#2980b9', fg='white', width=12, height=1,
+                 command=self.editar_categoria).pack(side='left', padx=5)
+        
+        tk.Button(action_frame, text="🗑️ ELIMINAR", font=('Arial', 11, 'bold'),
+                 bg='#e74c3c', fg='white', width=12, height=1,
+                 command=self.eliminar_categoria).pack(side='left', padx=5)
+        
+        tk.Button(action_frame, text="📄 EXPORTAR", font=('Arial', 11, 'bold'),
+                 bg='#27ae60', fg='white', width=12, height=1,
+                 command=self.exportar_categorias).pack(side='right', padx=5)
+        
+        # Lista de categorías
+        list_frame = tk.Frame(frame, bg='#f8f9fa')
+        list_frame.pack(fill='both', expand=True)
+        
+        # Treeview para categorías
+        columns = ('id', 'nombre', 'descripcion', 'activo', 'productos')
+        self.categorias_tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=15)
+        
+        self.categorias_tree.heading('id', text='ID')
+        self.categorias_tree.heading('nombre', text='Nombre')
+        self.categorias_tree.heading('descripcion', text='Descripción')
+        self.categorias_tree.heading('activo', text='Estado')
+        self.categorias_tree.heading('productos', text='Productos')
+        
+        self.categorias_tree.column('id', width=50)
+        self.categorias_tree.column('nombre', width=150)
+        self.categorias_tree.column('descripcion', width=250)
+        self.categorias_tree.column('activo', width=80)
+        self.categorias_tree.column('productos', width=80)
+        
+        scrollbar_cat = ttk.Scrollbar(list_frame, orient='vertical', command=self.categorias_tree.yview)
+        self.categorias_tree.configure(yscrollcommand=scrollbar_cat.set)
+        
+        self.categorias_tree.pack(side='left', fill='both', expand=True)
+        scrollbar_cat.pack(side='right', fill='y')
+        
+        # Cargar datos
+        self.load_categorias()
+    
+    def show_productos_management(self):
+        frame = tk.Frame(self.menu_content_frame, bg='#f8f9fa')
+        frame.pack(fill='both', expand=True)
+        
+        # Filtros
+        filter_frame = tk.Frame(frame, bg='#f8f9fa')
+        filter_frame.pack(fill='x', pady=(0,10))
+        
+        tk.Label(filter_frame, text="🔍 Filtrar por categoría:", font=('Arial', 11), 
+                bg='#f8f9fa').pack(side='left', padx=5)
+        
+        self.categoria_filter = ttk.Combobox(filter_frame, width=20, state='readonly')
+        self.categoria_filter.pack(side='left', padx=5)
+        self.categoria_filter.bind('<<ComboboxSelected>>', lambda e: self.load_productos())
+        
+        # Botones de acción
+        action_frame = tk.Frame(frame, bg='#f8f9fa')
+        action_frame.pack(fill='x', pady=(0,15))
+        
+        tk.Button(action_frame, text="➕ NUEVO PRODUCTO", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=18, height=1,
+                 command=self.nuevo_producto).pack(side='left', padx=5)
+        
+        tk.Button(action_frame, text="✏️ EDITAR", font=('Arial', 11, 'bold'),
+                 bg='#2980b9', fg='white', width=12, height=1,
+                 command=self.editar_producto).pack(side='left', padx=5)
+        
+        tk.Button(action_frame, text="🗑️ ELIMINAR", font=('Arial', 11, 'bold'),
+                 bg='#e74c3c', fg='white', width=12, height=1,
+                 command=self.eliminar_producto).pack(side='left', padx=5)
+        
+        tk.Button(action_frame, text="📄 EXPORTAR", font=('Arial', 11, 'bold'),
+                 bg='#27ae60', fg='white', width=12, height=1,
+                 command=self.exportar_productos).pack(side='right', padx=5)
+        
+        tk.Button(action_frame, text="📥 IMPORTAR", font=('Arial', 11, 'bold'),
+                 bg='#f39c12', fg='white', width=12, height=1,
+                 command=self.importar_productos).pack(side='right', padx=5)
+        
+        # Lista de productos
+        list_frame = tk.Frame(frame, bg='#f8f9fa')
+        list_frame.pack(fill='both', expand=True)
+        
+        columns = ('id', 'nombre', 'categoria', 'precio', 'activo', 'descripcion')
+        self.productos_tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=15)
+        
+        self.productos_tree.heading('id', text='ID')
+        self.productos_tree.heading('nombre', text='Nombre')
+        self.productos_tree.heading('categoria', text='Categoría')
+        self.productos_tree.heading('precio', text='Precio')
+        self.productos_tree.heading('activo', text='Estado')
+        self.productos_tree.heading('descripcion', text='Descripción')
+        
+        self.productos_tree.column('id', width=50)
+        self.productos_tree.column('nombre', width=180)
+        self.productos_tree.column('categoria', width=120)
+        self.productos_tree.column('precio', width=80)
+        self.productos_tree.column('activo', width=80)
+        self.productos_tree.column('descripcion', width=200)
+        
+        scrollbar_prod = ttk.Scrollbar(list_frame, orient='vertical', command=self.productos_tree.yview)
+        self.productos_tree.configure(yscrollcommand=scrollbar_prod.set)
+        
+        self.productos_tree.pack(side='left', fill='both', expand=True)
+        scrollbar_prod.pack(side='right', fill='y')
+        
+        # Cargar datos
+        self.load_categoria_filter()
+        self.load_productos()
+    
+    def show_menu_reports(self):
+        frame = tk.Frame(self.menu_content_frame, bg='#f8f9fa')
+        frame.pack(fill='both', expand=True)
+        
+        # Título de reportes
+        tk.Label(frame, text="📊 REPORTES DE MENÚ", font=('Arial', 16, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
+        
+        # Grid de botones de reportes
+        reports_grid = tk.Frame(frame, bg='#f8f9fa')
+        reports_grid.pack(expand=True)
+        
+        # Fila 1
+        row1 = tk.Frame(reports_grid, bg='#f8f9fa')
+        row1.pack(pady=10)
+        
+        tk.Button(row1, text="📈 PRODUCTOS MÁS VENDIDOS", font=('Arial', 12, 'bold'),
+                 bg='#3498db', fg='white', width=25, height=3,
+                 command=self.reporte_productos_vendidos).pack(side='left', padx=10)
+        
+        tk.Button(row1, text="💰 ANÁLISIS DE PRECIOS", font=('Arial', 12, 'bold'),
+                 bg='#2980b9', fg='white', width=25, height=3,
+                 command=self.reporte_analisis_precios).pack(side='left', padx=10)
+        
+        # Fila 2
+        row2 = tk.Frame(reports_grid, bg='#f8f9fa')
+        row2.pack(pady=10)
+        
+        tk.Button(row2, text="📋 INVENTARIO COMPLETO", font=('Arial', 12, 'bold'),
+                 bg='#5dade2', fg='white', width=25, height=3,
+                 command=self.reporte_inventario_completo).pack(side='left', padx=10)
+        
+    # ================== FUNCIONES DE CATEGORÍAS ==================
+    
+    def load_categorias(self):
+        """Cargar categorías en el treeview"""
+        try:
+            # Limpiar tree
+            for item in self.categorias_tree.get_children():
+                self.categorias_tree.delete(item)
+            
+            # Obtener categorías con conteo de productos
+            query = """
+            SELECT c.*, COUNT(p.id) as total_productos
+            FROM categorias c
+            LEFT JOIN productos p ON c.id = p.categoria_id AND p.activo = 1
+            GROUP BY c.id
+            ORDER BY c.nombre
+            """
+            categorias = db.execute_query(query)
+            
+            for categoria in categorias:
+                estado = "✅ Activo" if categoria['activo'] else "❌ Inactivo"
+                self.categorias_tree.insert('', 'end', values=(
+                    categoria['id'],
+                    categoria['nombre'],
+                    categoria['descripcion'] or '',
+                    estado,
+                    categoria['total_productos']
+                ))
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Error cargando categorías: {str(e)}")
+    
+    def nueva_categoria(self):
+        """Crear nueva categoría"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Nueva Categoría")
+        dialog.geometry("450x300")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.configure(bg='#f8f9fa')
+        
+        # Frame principal
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        tk.Label(main_frame, text="📁 NUEVA CATEGORÍA", font=('Arial', 14, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
+        
+        # Campos
+        fields_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        fields_frame.pack(fill='x', pady=(0,20))
+        
+        tk.Label(fields_frame, text="Nombre:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=0, column=0, sticky='w', pady=8)
+        nombre_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
+        nombre_entry.grid(row=0, column=1, pady=8, padx=10, sticky='ew')
+        
+        tk.Label(fields_frame, text="Descripción:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=1, column=0, sticky='w', pady=8)
+        desc_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
+        desc_entry.grid(row=1, column=1, pady=8, padx=10, sticky='ew')
+        
+        activo_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(fields_frame, text="Categoría activa", variable=activo_var, 
+                      font=('Arial', 11), bg='#f8f9fa').grid(row=2, column=1, sticky='w', pady=8)
+        
+        fields_frame.grid_columnconfigure(1, weight=1)
+        
+        def guardar_categoria():
+            nombre = nombre_entry.get().strip()
+            descripcion = desc_entry.get().strip()
+            activo = activo_var.get()
+            
+            if not nombre:
+                messagebox.showerror("Error", "El nombre es obligatorio")
+                nombre_entry.focus()
+                return
+            
+            try:
+                query = "INSERT INTO categorias (nombre, descripcion, activo) VALUES (%s, %s, %s)"
+                result = db.execute_one(query, (nombre, descripcion or None, activo))
+                
+                if result:
+                    messagebox.showinfo("Éxito", f"Categoría '{nombre}' creada correctamente")
+                    dialog.destroy()
+                    self.load_categorias()
+                else:
+                    messagebox.showerror("Error", "No se pudo crear la categoría")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error guardando categoría: {str(e)}")
+        
+        # Botones
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack(fill='x')
+        
+        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                 bg='#95a5a6', fg='white', width=12, height=1,
+                 command=dialog.destroy).pack(side='left', padx=5)
+        
+        tk.Button(button_frame, text="GUARDAR", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=12, height=1,
+                 command=guardar_categoria).pack(side='right', padx=5)
+        
+        nombre_entry.focus()
+    
+    def editar_categoria(self):
+        """Editar categoría seleccionada"""
+        selection = self.categorias_tree.selection()
+        if not selection:
+            messagebox.showwarning("Advertencia", "Seleccione una categoría para editar")
+            return
+        
+        categoria_id = self.categorias_tree.item(selection[0])['values'][0]
+        
+        # Obtener datos actuales
+        query = "SELECT * FROM categorias WHERE id = %s"
+        categoria = db.execute_one(query, (categoria_id,))
+        
+        if not categoria:
+            messagebox.showerror("Error", "Categoría no encontrada")
+            return
+        
+        # Dialog de edición
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Editar Categoría")
+        dialog.geometry("450x300")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.configure(bg='#f8f9fa')
+        
+        # Frame principal
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        tk.Label(main_frame, text="✏️ EDITAR CATEGORÍA", font=('Arial', 14, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
+        
+        # Campos
+        fields_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        fields_frame.pack(fill='x', pady=(0,20))
+        
+        tk.Label(fields_frame, text="Nombre:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=0, column=0, sticky='w', pady=8)
+        nombre_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
+        nombre_entry.insert(0, categoria['nombre'])
+        nombre_entry.grid(row=0, column=1, pady=8, padx=10, sticky='ew')
+        
+        tk.Label(fields_frame, text="Descripción:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=1, column=0, sticky='w', pady=8)
+        desc_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
+        desc_entry.insert(0, categoria['descripcion'] or '')
+        desc_entry.grid(row=1, column=1, pady=8, padx=10, sticky='ew')
+        
+        activo_var = tk.BooleanVar(value=bool(categoria['activo']))
+        tk.Checkbutton(fields_frame, text="Categoría activa", variable=activo_var, 
+                      font=('Arial', 11), bg='#f8f9fa').grid(row=2, column=1, sticky='w', pady=8)
+        
+        fields_frame.grid_columnconfigure(1, weight=1)
+        
+        def actualizar_categoria():
+            nombre = nombre_entry.get().strip()
+            descripcion = desc_entry.get().strip()
+            activo = activo_var.get()
+            
+            if not nombre:
+                messagebox.showerror("Error", "El nombre es obligatorio")
+                nombre_entry.focus()
+                return
+            
+            try:
+                query = "UPDATE categorias SET nombre = %s, descripcion = %s, activo = %s WHERE id = %s"
+                result = db.execute_query(query, (nombre, descripcion or None, activo, categoria_id))
+                
+                if result:
+                    messagebox.showinfo("Éxito", f"Categoría '{nombre}' actualizada correctamente")
+                    dialog.destroy()
+                    self.load_categorias()
+                else:
+                    messagebox.showerror("Error", "No se pudo actualizar la categoría")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error actualizando categoría: {str(e)}")
+        
+        # Botones
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack(fill='x')
+        
+        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                 bg='#95a5a6', fg='white', width=12, height=1,
+                 command=dialog.destroy).pack(side='left', padx=5)
+        
+        tk.Button(button_frame, text="ACTUALIZAR", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=12, height=1,
+                 command=actualizar_categoria).pack(side='right', padx=5)
+        
+        nombre_entry.focus()
+    
+    def eliminar_categoria(self):
+        """Eliminar categoría seleccionada"""
+        selection = self.categorias_tree.selection()
+        if not selection:
+            messagebox.showwarning("Advertencia", "Seleccione una categoría para eliminar")
+            return
+        
+        categoria_id = self.categorias_tree.item(selection[0])['values'][0]
+        categoria_nombre = self.categorias_tree.item(selection[0])['values'][1]
+        
+        # Verificar si tiene productos
+        query = "SELECT COUNT(*) as total FROM productos WHERE categoria_id = %s"
+        result = db.execute_one(query, (categoria_id,))
+        total_productos = result['total'] if result else 0
+        
+        if total_productos > 0:
+            messagebox.showerror("Error", 
+                f"No se puede eliminar la categoría '{categoria_nombre}'\n"
+                f"Tiene {total_productos} productos asociados.\n\n"
+                f"Primero elimine o cambie la categoría de los productos.")
+            return
+        
+        # Confirmar eliminación
+        respuesta = messagebox.askyesno("Confirmar Eliminación", 
+            f"¿Está seguro de eliminar la categoría '{categoria_nombre}'?\n\n"
+            f"Esta acción no se puede deshacer.")
+        
+        if respuesta:
+            try:
+                query = "DELETE FROM categorias WHERE id = %s"
+                result = db.execute_query(query, (categoria_id,))
+                
+                if result:
+                    messagebox.showinfo("Éxito", f"Categoría '{categoria_nombre}' eliminada correctamente")
+                    self.load_categorias()
+                else:
+                    messagebox.showerror("Error", "No se pudo eliminar la categoría")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error eliminando categoría: {str(e)}")
+    
+    def exportar_categorias(self):
+        """Exportar categorías a Excel"""
+        try:
+            import pandas as pd
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment
+            from datetime import datetime
+            
+            # Obtener datos
+            query = """
+            SELECT c.id, c.nombre, c.descripcion, c.activo, COUNT(p.id) as total_productos
+            FROM categorias c
+            LEFT JOIN productos p ON c.id = p.categoria_id AND p.activo = 1
+            GROUP BY c.id
+            ORDER BY c.nombre
+            """
+            categorias = db.execute_query(query)
+            
+            # Crear workbook
+            wb = Workbook()
+            sheet = wb.active
+            sheet.title = "Categorías"
+            
+            # Headers
+            headers = ['ID', 'Nombre', 'Descripción', 'Activo', 'Total Productos']
+            for col, header in enumerate(headers, 1):
+                cell = sheet.cell(row=1, column=col, value=header)
+                cell.font = Font(bold=True, color='FFFFFF')
+                cell.fill = PatternFill('solid', start_color='3498DB')
+                cell.alignment = Alignment(horizontal='center')
+            
+            # Datos
+            for row, categoria in enumerate(categorias, 2):
+                sheet.cell(row=row, column=1, value=categoria['id'])
+                sheet.cell(row=row, column=2, value=categoria['nombre'])
+                sheet.cell(row=row, column=3, value=categoria['descripcion'] or '')
+                sheet.cell(row=row, column=4, value='Sí' if categoria['activo'] else 'No')
+                sheet.cell(row=row, column=5, value=categoria['total_productos'])
+            
+            # Ajustar ancho de columnas
+            sheet.column_dimensions['A'].width = 8
+            sheet.column_dimensions['B'].width = 20
+            sheet.column_dimensions['C'].width = 30
+            sheet.column_dimensions['D'].width = 10
+            sheet.column_dimensions['E'].width = 15
+            
+            # Guardar archivo
+            filename = f"categorias_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            filepath = f"/mnt/user-data/outputs/{filename}"
+            wb.save(filepath)
+            
+            messagebox.showinfo("Éxito", f"Categorías exportadas correctamente\nArchivo: {filename}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Error exportando categorías: {str(e)}")
+    
+    # ================== FUNCIONES DE PRODUCTOS ==================
+    
+    def load_categoria_filter(self):
+        """Cargar opciones de filtro de categorías"""
+        try:
+            query = "SELECT id, nombre FROM categorias WHERE activo = 1 ORDER BY nombre"
+            categorias = db.execute_query(query)
+            
+            options = ['Todas las categorías']
+            for categoria in categorias:
+                options.append(f"{categoria['nombre']} (ID: {categoria['id']})")
+            
+            self.categoria_filter['values'] = options
+            self.categoria_filter.set('Todas las categorías')
+            
+        except Exception as e:
+            print(f"Error cargando filtro de categorías: {e}")
+    
+    def load_productos(self):
+        """Cargar productos en el treeview"""
+        try:
+            # Limpiar tree
+            for item in self.productos_tree.get_children():
+                self.productos_tree.delete(item)
+            
+            # Obtener filtro de categoría
+            filtro = self.categoria_filter.get()
+            categoria_id = None
+            
+            if filtro != 'Todas las categorías' and 'ID:' in filtro:
+                # Extraer ID de la categoría del filtro
+                categoria_id = filtro.split('ID: ')[1].rstrip(')')
+            
+            # Query base
+            query = """
+            SELECT p.*, c.nombre as categoria_nombre
+            FROM productos p
+            JOIN categorias c ON p.categoria_id = c.id
+            """
+            params = []
+            
+            if categoria_id:
+                query += " WHERE p.categoria_id = %s"
+                params.append(categoria_id)
+            
+            query += " ORDER BY c.nombre, p.nombre"
+            
+            productos = db.execute_query(query, params)
+            
+            for producto in productos:
+                estado = "✅ Activo" if producto['activo'] else "❌ Inactivo"
+                self.productos_tree.insert('', 'end', values=(
+                    producto['id'],
+                    producto['nombre'],
+                    producto['categoria_nombre'],
+                    f"${float(producto['precio']):.2f}",
+                    estado,
+                    producto['descripcion'] or ''
+                ))
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Error cargando productos: {str(e)}")
+    
+    def nuevo_producto(self):
+        """Crear nuevo producto"""
+        # Primero verificar que hay categorías activas
+        query = "SELECT COUNT(*) as total FROM categorias WHERE activo = 1"
+        result = db.execute_one(query)
+        if not result or result['total'] == 0:
+            messagebox.showerror("Error", "No hay categorías activas.\nPrimero cree al menos una categoría.")
+            return
+        
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Nuevo Producto")
+        dialog.geometry("500x400")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.configure(bg='#f8f9fa')
+        
+        # Frame principal
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        tk.Label(main_frame, text="🍕 NUEVO PRODUCTO", font=('Arial', 14, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
+        
+        # Campos
+        fields_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        fields_frame.pack(fill='x', pady=(0,20))
+        
+        # Nombre
+        tk.Label(fields_frame, text="Nombre:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=0, column=0, sticky='w', pady=8)
+        nombre_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
+        nombre_entry.grid(row=0, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Categoría
+        tk.Label(fields_frame, text="Categoría:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=1, column=0, sticky='w', pady=8)
+        
+        categoria_combo = ttk.Combobox(fields_frame, width=28, state='readonly')
+        categoria_combo.grid(row=1, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Cargar categorías
+        query = "SELECT id, nombre FROM categorias WHERE activo = 1 ORDER BY nombre"
+        categorias = db.execute_query(query)
+        categoria_options = []
+        categoria_ids = []
+        for categoria in categorias:
+            categoria_options.append(categoria['nombre'])
+            categoria_ids.append(categoria['id'])
+        categoria_combo['values'] = categoria_options
+        
+        # Precio
+        tk.Label(fields_frame, text="Precio ($):", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=2, column=0, sticky='w', pady=8)
+        precio_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
+        precio_entry.grid(row=2, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Descripción
+        tk.Label(fields_frame, text="Descripción:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=3, column=0, sticky='nw', pady=8)
+        desc_text = tk.Text(fields_frame, width=30, height=3, font=('Arial', 11), relief='solid', bd=1)
+        desc_text.grid(row=3, column=1, pady=8, padx=10, sticky='ew')
+        
+        activo_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(fields_frame, text="Producto activo", variable=activo_var, 
+                      font=('Arial', 11), bg='#f8f9fa').grid(row=4, column=1, sticky='w', pady=8)
+        
+        fields_frame.grid_columnconfigure(1, weight=1)
+        
+        def guardar_producto():
+            nombre = nombre_entry.get().strip()
+            precio_str = precio_entry.get().strip()
+            descripcion = desc_text.get('1.0', tk.END).strip()
+            activo = activo_var.get()
+            categoria_idx = categoria_combo.current()
+            
+            if not nombre:
+                messagebox.showerror("Error", "El nombre es obligatorio")
+                nombre_entry.focus()
+                return
+            
+            if categoria_idx < 0:
+                messagebox.showerror("Error", "Seleccione una categoría")
+                categoria_combo.focus()
+                return
+            
+            try:
+                precio = float(precio_str)
+                if precio < 0:
+                    messagebox.showerror("Error", "El precio no puede ser negativo")
+                    precio_entry.focus()
+                    return
+            except ValueError:
+                messagebox.showerror("Error", "Precio inválido")
+                precio_entry.focus()
+                return
+            
+            categoria_id = categoria_ids[categoria_idx]
+            
+            try:
+                query = "INSERT INTO productos (nombre, categoria_id, precio, descripcion, activo) VALUES (%s, %s, %s, %s, %s)"
+                result = db.execute_one(query, (nombre, categoria_id, precio, descripcion or None, activo))
+                
+                if result:
+                    messagebox.showinfo("Éxito", f"Producto '{nombre}' creado correctamente")
+                    dialog.destroy()
+                    self.load_productos()
+                else:
+                    messagebox.showerror("Error", "No se pudo crear el producto")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error guardando producto: {str(e)}")
+        
+        # Botones
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack(fill='x')
+        
+        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                 bg='#95a5a6', fg='white', width=12, height=1,
+                 command=dialog.destroy).pack(side='left', padx=5)
+        
+        tk.Button(button_frame, text="GUARDAR", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=12, height=1,
+                 command=guardar_producto).pack(side='right', padx=5)
+        
+        nombre_entry.focus()
 
     def admin_usuarios(self):
         messagebox.showinfo("Información", "Funcionalidad en desarrollo")
@@ -1880,6 +2584,668 @@ DIFERENCIA: ${diferencia:.2f}"""
 
     def admin_clientes(self):
         messagebox.showinfo("Información", "Funcionalidad en desarrollo")
+        
+    # ================== FUNCIONES ADICIONALES DE PRODUCTOS ==================
+    
+    def editar_producto(self):
+        """Editar producto seleccionado"""
+        selection = self.productos_tree.selection()
+        if not selection:
+            messagebox.showwarning("Advertencia", "Seleccione un producto para editar")
+            return
+        
+        producto_id = self.productos_tree.item(selection[0])['values'][0]
+        
+        # Obtener datos actuales
+        query = "SELECT * FROM productos WHERE id = %s"
+        producto = db.execute_one(query, (producto_id,))
+        
+        if not producto:
+            messagebox.showerror("Error", "Producto no encontrado")
+            return
+        
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Editar Producto")
+        dialog.geometry("500x400")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.configure(bg='#f8f9fa')
+        
+        # Frame principal
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        tk.Label(main_frame, text="✏️ EDITAR PRODUCTO", font=('Arial', 14, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
+        
+        # Campos
+        fields_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        fields_frame.pack(fill='x', pady=(0,20))
+        
+        # Nombre
+        tk.Label(fields_frame, text="Nombre:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=0, column=0, sticky='w', pady=8)
+        nombre_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
+        nombre_entry.insert(0, producto['nombre'])
+        nombre_entry.grid(row=0, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Categoría
+        tk.Label(fields_frame, text="Categoría:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=1, column=0, sticky='w', pady=8)
+        
+        categoria_combo = ttk.Combobox(fields_frame, width=28, state='readonly')
+        categoria_combo.grid(row=1, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Cargar categorías
+        query = "SELECT id, nombre FROM categorias WHERE activo = 1 ORDER BY nombre"
+        categorias = db.execute_query(query)
+        categoria_options = []
+        categoria_ids = []
+        current_idx = 0
+        for i, categoria in enumerate(categorias):
+            categoria_options.append(categoria['nombre'])
+            categoria_ids.append(categoria['id'])
+            if categoria['id'] == producto['categoria_id']:
+                current_idx = i
+        
+        categoria_combo['values'] = categoria_options
+        categoria_combo.current(current_idx)
+        
+        # Precio
+        tk.Label(fields_frame, text="Precio ($):", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=2, column=0, sticky='w', pady=8)
+        precio_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
+        precio_entry.insert(0, str(float(producto['precio'])))
+        precio_entry.grid(row=2, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Descripción
+        tk.Label(fields_frame, text="Descripción:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=3, column=0, sticky='nw', pady=8)
+        desc_text = tk.Text(fields_frame, width=30, height=3, font=('Arial', 11), relief='solid', bd=1)
+        desc_text.insert('1.0', producto['descripcion'] or '')
+        desc_text.grid(row=3, column=1, pady=8, padx=10, sticky='ew')
+        
+        activo_var = tk.BooleanVar(value=bool(producto['activo']))
+        tk.Checkbutton(fields_frame, text="Producto activo", variable=activo_var, 
+                      font=('Arial', 11), bg='#f8f9fa').grid(row=4, column=1, sticky='w', pady=8)
+        
+        fields_frame.grid_columnconfigure(1, weight=1)
+        
+        def actualizar_producto():
+            nombre = nombre_entry.get().strip()
+            precio_str = precio_entry.get().strip()
+            descripcion = desc_text.get('1.0', tk.END).strip()
+            activo = activo_var.get()
+            categoria_idx = categoria_combo.current()
+            
+            if not nombre:
+                messagebox.showerror("Error", "El nombre es obligatorio")
+                nombre_entry.focus()
+                return
+            
+            if categoria_idx < 0:
+                messagebox.showerror("Error", "Seleccione una categoría")
+                categoria_combo.focus()
+                return
+            
+            try:
+                precio = float(precio_str)
+                if precio < 0:
+                    messagebox.showerror("Error", "El precio no puede ser negativo")
+                    precio_entry.focus()
+                    return
+            except ValueError:
+                messagebox.showerror("Error", "Precio inválido")
+                precio_entry.focus()
+                return
+            
+            categoria_id = categoria_ids[categoria_idx]
+            
+            try:
+                query = "UPDATE productos SET nombre = %s, categoria_id = %s, precio = %s, descripcion = %s, activo = %s WHERE id = %s"
+                result = db.execute_query(query, (nombre, categoria_id, precio, descripcion or None, activo, producto_id))
+                
+                if result:
+                    messagebox.showinfo("Éxito", f"Producto '{nombre}' actualizado correctamente")
+                    dialog.destroy()
+                    self.load_productos()
+                else:
+                    messagebox.showerror("Error", "No se pudo actualizar el producto")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error actualizando producto: {str(e)}")
+        
+        # Botones
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack(fill='x')
+        
+        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                 bg='#95a5a6', fg='white', width=12, height=1,
+                 command=dialog.destroy).pack(side='left', padx=5)
+        
+        tk.Button(button_frame, text="ACTUALIZAR", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=12, height=1,
+                 command=actualizar_producto).pack(side='right', padx=5)
+        
+        nombre_entry.focus()
+    
+    def eliminar_producto(self):
+        """Eliminar producto seleccionado"""
+        selection = self.productos_tree.selection()
+        if not selection:
+            messagebox.showwarning("Advertencia", "Seleccione un producto para eliminar")
+            return
+        
+        producto_id = self.productos_tree.item(selection[0])['values'][0]
+        producto_nombre = self.productos_tree.item(selection[0])['values'][1]
+        
+        # Verificar si se ha usado en órdenes
+        query = "SELECT COUNT(*) as total FROM orden_detalles WHERE producto_id = %s"
+        result = db.execute_one(query, (producto_id,))
+        total_ordenes = result['total'] if result else 0
+        
+        mensaje = f"¿Está seguro de eliminar el producto '{producto_nombre}'?\n\n"
+        
+        if total_ordenes > 0:
+            mensaje += f"⚠️ ADVERTENCIA: Este producto aparece en {total_ordenes} órdenes.\n"
+            mensaje += "Al eliminarlo no aparecerá en reportes futuros, pero las órdenes\n"
+            mensaje += "existentes mantendrán la información.\n\n"
+        
+        mensaje += "Esta acción no se puede deshacer."
+        
+        respuesta = messagebox.askyesno("Confirmar Eliminación", mensaje)
+        
+        if respuesta:
+            try:
+                query = "DELETE FROM productos WHERE id = %s"
+                result = db.execute_query(query, (producto_id,))
+                
+                if result:
+                    messagebox.showinfo("Éxito", f"Producto '{producto_nombre}' eliminado correctamente")
+                    self.load_productos()
+                else:
+                    messagebox.showerror("Error", "No se pudo eliminar el producto")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error eliminando producto: {str(e)}")
+    
+    def exportar_productos(self):
+        """Exportar productos a Excel"""
+        try:
+            import pandas as pd
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from datetime import datetime
+            
+            # Obtener datos
+            query = """
+            SELECT p.id, p.nombre, c.nombre as categoria, p.precio, p.descripcion, p.activo
+            FROM productos p
+            JOIN categorias c ON p.categoria_id = c.id
+            ORDER BY c.nombre, p.nombre
+            """
+            productos = db.execute_query(query)
+            
+            # Crear workbook
+            wb = Workbook()
+            sheet = wb.active
+            sheet.title = "Productos"
+            
+            # Headers
+            headers = ['ID', 'Nombre', 'Categoría', 'Precio', 'Descripción', 'Activo']
+            for col, header in enumerate(headers, 1):
+                cell = sheet.cell(row=1, column=col, value=header)
+                cell.font = Font(bold=True, color='FFFFFF')
+                cell.fill = PatternFill('solid', start_color='3498DB')
+                cell.alignment = Alignment(horizontal='center')
+            
+            # Datos
+            for row, producto in enumerate(productos, 2):
+                sheet.cell(row=row, column=1, value=producto['id'])
+                sheet.cell(row=row, column=2, value=producto['nombre'])
+                sheet.cell(row=row, column=3, value=producto['categoria'])
+                sheet.cell(row=row, column=4, value=float(producto['precio']))
+                sheet.cell(row=row, column=5, value=producto['descripcion'] or '')
+                sheet.cell(row=row, column=6, value='Sí' if producto['activo'] else 'No')
+            
+            # Formatear precios
+            for row in range(2, len(productos) + 2):
+                cell = sheet.cell(row=row, column=4)
+                cell.number_format = '$#,##0.00'
+            
+            # Ajustar ancho de columnas
+            sheet.column_dimensions['A'].width = 8
+            sheet.column_dimensions['B'].width = 25
+            sheet.column_dimensions['C'].width = 18
+            sheet.column_dimensions['D'].width = 12
+            sheet.column_dimensions['E'].width = 35
+            sheet.column_dimensions['F'].width = 10
+            
+            # Guardar archivo
+            filename = f"productos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            filepath = f"/mnt/user-data/outputs/{filename}"
+            wb.save(filepath)
+            
+            messagebox.showinfo("Éxito", f"Productos exportados correctamente\nArchivo: {filename}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Error exportando productos: {str(e)}")
+    
+    def importar_productos(self):
+        """Importar productos desde Excel"""
+        messagebox.showinfo("Función de Importar", 
+            "Funcionalidad de importación desde Excel:\n\n"
+            "1. El archivo Excel debe contener las columnas:\n"
+            "   - nombre (obligatorio)\n"
+            "   - categoria (obligatorio - debe existir)\n"
+            "   - precio (obligatorio - número positivo)\n"
+            "   - descripcion (opcional)\n\n"
+            "2. Use 'Exportar Productos' para ver el formato correcto\n\n"
+            "Esta función estará disponible próximamente.")
+
+    def reporte_productos_vendidos(self):
+        """Generar reporte de productos más vendidos"""
+        try:
+            import pandas as pd
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment
+            from datetime import datetime, timedelta
+            
+            # Dialog para seleccionar período
+            dialog = tk.Toplevel(self.root)
+            dialog.title("Reporte Productos Más Vendidos")
+            dialog.geometry("400x300")
+            dialog.resizable(False, False)
+            dialog.transient(self.root)
+            dialog.grab_set()
+            dialog.configure(bg='#f8f9fa')
+            
+            main_frame = tk.Frame(dialog, bg='#f8f9fa')
+            main_frame.pack(fill='both', expand=True, padx=20, pady=20)
+            
+            tk.Label(main_frame, text="📈 PRODUCTOS MÁS VENDIDOS", font=('Arial', 14, 'bold'), 
+                    bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
+            
+            # Período
+            period_frame = tk.LabelFrame(main_frame, text="Período", font=('Arial', 11), 
+                                       bg='#f8f9fa', fg='#2c3e50')
+            period_frame.pack(fill='x', pady=(0,15))
+            
+            period_var = tk.StringVar(value='30dias')
+            
+            tk.Radiobutton(period_frame, text="Últimos 7 días", variable=period_var, 
+                          value='7dias', font=('Arial', 10), bg='#f8f9fa').pack(anchor='w', padx=10, pady=2)
+            tk.Radiobutton(period_frame, text="Últimos 30 días", variable=period_var, 
+                          value='30dias', font=('Arial', 10), bg='#f8f9fa').pack(anchor='w', padx=10, pady=2)
+            tk.Radiobutton(period_frame, text="Últimos 90 días", variable=period_var, 
+                          value='90dias', font=('Arial', 10), bg='#f8f9fa').pack(anchor='w', padx=10, pady=2)
+            tk.Radiobutton(period_frame, text="Todo el tiempo", variable=period_var, 
+                          value='todo', font=('Arial', 10), bg='#f8f9fa').pack(anchor='w', padx=10, pady=2)
+            
+            def generar_reporte():
+                try:
+                    # Calcular fechas
+                    period = period_var.get()
+                    where_clause = ""
+                    params = []
+                    
+                    if period != 'todo':
+                        dias = int(period.replace('dias', ''))
+                        fecha_inicio = datetime.now() - timedelta(days=dias)
+                        where_clause = "WHERE o.fecha_orden >= %s"
+                        params.append(fecha_inicio)
+                    
+                    # Query para productos más vendidos
+                    query = f"""
+                    SELECT 
+                        p.id,
+                        p.nombre,
+                        c.nombre as categoria,
+                        SUM(od.cantidad) as total_vendido,
+                        SUM(od.subtotal) as ingresos_totales,
+                        AVG(od.precio_unitario) as precio_promedio,
+                        COUNT(DISTINCT o.id) as ordenes_count
+                    FROM productos p
+                    JOIN orden_detalles od ON p.id = od.producto_id
+                    JOIN ordenes o ON od.orden_id = o.id
+                    JOIN categorias c ON p.categoria_id = c.id
+                    {where_clause}
+                    GROUP BY p.id, p.nombre, c.nombre
+                    ORDER BY total_vendido DESC
+                    LIMIT 50
+                    """
+                    
+                    productos = db.execute_query(query, params)
+                    
+                    if not productos:
+                        messagebox.showinfo("Información", "No hay datos de ventas en el período seleccionado")
+                        return
+                    
+                    # Crear Excel
+                    wb = Workbook()
+                    sheet = wb.active
+                    sheet.title = "Productos Más Vendidos"
+                    
+                    # Título del reporte
+                    periodo_text = {
+                        '7dias': 'Últimos 7 días',
+                        '30dias': 'Últimos 30 días', 
+                        '90dias': 'Últimos 90 días',
+                        'todo': 'Todo el tiempo'
+                    }[period]
+                    
+                    sheet.merge_cells('A1:G1')
+                    title_cell = sheet['A1']
+                    title_cell.value = f"PRODUCTOS MÁS VENDIDOS - {periodo_text}"
+                    title_cell.font = Font(bold=True, size=14, color='FFFFFF')
+                    title_cell.fill = PatternFill('solid', start_color='2980B9')
+                    title_cell.alignment = Alignment(horizontal='center')
+                    
+                    # Headers
+                    headers = ['Rank', 'Producto', 'Categoría', 'Cantidad Vendida', 'Ingresos', 'Precio Prom.', 'Órdenes']
+                    for col, header in enumerate(headers, 1):
+                        cell = sheet.cell(row=3, column=col, value=header)
+                        cell.font = Font(bold=True, color='FFFFFF')
+                        cell.fill = PatternFill('solid', start_color='3498DB')
+                        cell.alignment = Alignment(horizontal='center')
+                    
+                    # Datos
+                    for rank, producto in enumerate(productos, 1):
+                        row = rank + 3
+                        sheet.cell(row=row, column=1, value=rank)
+                        sheet.cell(row=row, column=2, value=producto['nombre'])
+                        sheet.cell(row=row, column=3, value=producto['categoria'])
+                        sheet.cell(row=row, column=4, value=producto['total_vendido'])
+                        sheet.cell(row=row, column=5, value=float(producto['ingresos_totales']))
+                        sheet.cell(row=row, column=6, value=float(producto['precio_promedio']))
+                        sheet.cell(row=row, column=7, value=producto['ordenes_count'])
+                        
+                        # Formatear números
+                        sheet.cell(row=row, column=5).number_format = '$#,##0.00'
+                        sheet.cell(row=row, column=6).number_format = '$#,##0.00'
+                    
+                    # Ajustar columnas
+                    sheet.column_dimensions['A'].width = 8
+                    sheet.column_dimensions['B'].width = 25
+                    sheet.column_dimensions['C'].width = 18
+                    sheet.column_dimensions['D'].width = 12
+                    sheet.column_dimensions['E'].width = 12
+                    sheet.column_dimensions['F'].width = 12
+                    sheet.column_dimensions['G'].width = 10
+                    
+                    # Guardar archivo
+                    filename = f"productos_vendidos_{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                    filepath = f"/mnt/user-data/outputs/{filename}"
+                    wb.save(filepath)
+                    
+                    dialog.destroy()
+                    messagebox.showinfo("Éxito", f"Reporte generado correctamente\nArchivo: {filename}")
+                    
+                except Exception as e:
+                    messagebox.showerror("Error", f"Error generando reporte: {str(e)}")
+            
+            # Botones
+            button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+            button_frame.pack(fill='x', pady=(15,0))
+            
+            tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                     bg='#95a5a6', fg='white', width=12, height=1,
+                     command=dialog.destroy).pack(side='left', padx=5)
+            
+            tk.Button(button_frame, text="GENERAR REPORTE", font=('Arial', 11, 'bold'),
+                     bg='#3498db', fg='white', width=15, height=1,
+                     command=generar_reporte).pack(side='right', padx=5)
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Error iniciando reporte: {str(e)}")
+    
+    def reporte_analisis_precios(self):
+        """Análisis de precios por categoría"""
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment
+            from datetime import datetime
+            
+            # Obtener datos
+            query = """
+            SELECT 
+                c.nombre as categoria,
+                COUNT(p.id) as total_productos,
+                MIN(p.precio) as precio_min,
+                MAX(p.precio) as precio_max,
+                AVG(p.precio) as precio_promedio,
+                SUM(CASE WHEN p.activo = 1 THEN 1 ELSE 0 END) as productos_activos
+            FROM categorias c
+            LEFT JOIN productos p ON c.id = p.categoria_id
+            WHERE c.activo = 1
+            GROUP BY c.id, c.nombre
+            ORDER BY c.nombre
+            """
+            
+            data = db.execute_query(query)
+            
+            # Crear Excel
+            wb = Workbook()
+            sheet = wb.active
+            sheet.title = "Análisis de Precios"
+            
+            # Título
+            sheet.merge_cells('A1:F1')
+            title_cell = sheet['A1']
+            title_cell.value = f"ANÁLISIS DE PRECIOS POR CATEGORÍA - {datetime.now().strftime('%d/%m/%Y')}"
+            title_cell.font = Font(bold=True, size=14, color='FFFFFF')
+            title_cell.fill = PatternFill('solid', start_color='2980B9')
+            title_cell.alignment = Alignment(horizontal='center')
+            
+            # Headers
+            headers = ['Categoría', 'Total Productos', 'Precio Mínimo', 'Precio Máximo', 'Precio Promedio', 'Activos']
+            for col, header in enumerate(headers, 1):
+                cell = sheet.cell(row=3, column=col, value=header)
+                cell.font = Font(bold=True, color='FFFFFF')
+                cell.fill = PatternFill('solid', start_color='3498DB')
+                cell.alignment = Alignment(horizontal='center')
+            
+            # Datos
+            for row, item in enumerate(data, 4):
+                sheet.cell(row=row, column=1, value=item['categoria'])
+                sheet.cell(row=row, column=2, value=item['total_productos'] or 0)
+                sheet.cell(row=row, column=3, value=float(item['precio_min']) if item['precio_min'] else 0)
+                sheet.cell(row=row, column=4, value=float(item['precio_max']) if item['precio_max'] else 0)
+                sheet.cell(row=row, column=5, value=float(item['precio_promedio']) if item['precio_promedio'] else 0)
+                sheet.cell(row=row, column=6, value=item['productos_activos'] or 0)
+                
+                # Formatear precios
+                for col in [3, 4, 5]:
+                    sheet.cell(row=row, column=col).number_format = '$#,##0.00'
+            
+            # Ajustar columnas
+            for col in ['A', 'B', 'C', 'D', 'E', 'F']:
+                sheet.column_dimensions[col].width = 18
+            
+            # Guardar
+            filename = f"analisis_precios_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            filepath = f"/mnt/user-data/outputs/{filename}"
+            wb.save(filepath)
+            
+            messagebox.showinfo("Éxito", f"Análisis de precios generado\nArchivo: {filename}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Error generando análisis: {str(e)}")
+    
+    def reporte_inventario_completo(self):
+        """Reporte completo del inventario"""
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment
+            from datetime import datetime
+            
+            # Obtener todos los productos con información detallada
+            query = """
+            SELECT 
+                p.id,
+                p.nombre,
+                c.nombre as categoria,
+                p.precio,
+                p.descripcion,
+                CASE WHEN p.activo = 1 THEN 'Activo' ELSE 'Inactivo' END as estado,
+                COALESCE(ventas.total_vendido, 0) as total_vendido,
+                COALESCE(ventas.ingresos, 0) as ingresos_totales
+            FROM productos p
+            JOIN categorias c ON p.categoria_id = c.id
+            LEFT JOIN (
+                SELECT 
+                    od.producto_id,
+                    SUM(od.cantidad) as total_vendido,
+                    SUM(od.subtotal) as ingresos
+                FROM orden_detalles od
+                GROUP BY od.producto_id
+            ) ventas ON p.id = ventas.producto_id
+            ORDER BY c.nombre, p.nombre
+            """
+            
+            productos = db.execute_query(query)
+            
+            # Crear Excel
+            wb = Workbook()
+            
+            # Hoja de productos
+            sheet_productos = wb.active
+            sheet_productos.title = "Inventario Completo"
+            
+            # Título
+            sheet_productos.merge_cells('A1:H1')
+            title_cell = sheet_productos['A1']
+            title_cell.value = f"INVENTARIO COMPLETO - {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            title_cell.font = Font(bold=True, size=14, color='FFFFFF')
+            title_cell.fill = PatternFill('solid', start_color='2980B9')
+            title_cell.alignment = Alignment(horizontal='center')
+            
+            # Headers
+            headers = ['ID', 'Nombre', 'Categoría', 'Precio', 'Estado', 'Vendido', 'Ingresos', 'Descripción']
+            for col, header in enumerate(headers, 1):
+                cell = sheet_productos.cell(row=3, column=col, value=header)
+                cell.font = Font(bold=True, color='FFFFFF')
+                cell.fill = PatternFill('solid', start_color='3498DB')
+                cell.alignment = Alignment(horizontal='center')
+            
+            # Datos
+            for row, producto in enumerate(productos, 4):
+                sheet_productos.cell(row=row, column=1, value=producto['id'])
+                sheet_productos.cell(row=row, column=2, value=producto['nombre'])
+                sheet_productos.cell(row=row, column=3, value=producto['categoria'])
+                sheet_productos.cell(row=row, column=4, value=float(producto['precio']))
+                sheet_productos.cell(row=row, column=5, value=producto['estado'])
+                sheet_productos.cell(row=row, column=6, value=producto['total_vendido'])
+                sheet_productos.cell(row=row, column=7, value=float(producto['ingresos_totales']))
+                sheet_productos.cell(row=row, column=8, value=producto['descripcion'] or '')
+                
+                # Formatear precios
+                sheet_productos.cell(row=row, column=4).number_format = '$#,##0.00'
+                sheet_productos.cell(row=row, column=7).number_format = '$#,##0.00'
+            
+            # Ajustar columnas
+            sheet_productos.column_dimensions['A'].width = 8
+            sheet_productos.column_dimensions['B'].width = 25
+            sheet_productos.column_dimensions['C'].width = 18
+            sheet_productos.column_dimensions['D'].width = 12
+            sheet_productos.column_dimensions['E'].width = 12
+            sheet_productos.column_dimensions['F'].width = 12
+            sheet_productos.column_dimensions['G'].width = 12
+            sheet_productos.column_dimensions['H'].width = 35
+            
+            # Guardar
+            filename = f"inventario_completo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            filepath = f"/mnt/user-data/outputs/{filename}"
+            wb.save(filepath)
+            
+            messagebox.showinfo("Éxito", f"Inventario completo generado\nArchivo: {filename}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Error generando inventario: {str(e)}")
+    
+    def reporte_categorias_resumen(self):
+        """Resumen de categorías con estadísticas"""
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment
+            from datetime import datetime
+            
+            # Obtener datos de categorías con estadísticas
+            query = """
+            SELECT 
+                c.id,
+                c.nombre,
+                c.descripcion,
+                CASE WHEN c.activo = 1 THEN 'Activa' ELSE 'Inactiva' END as estado,
+                COUNT(p.id) as total_productos,
+                SUM(CASE WHEN p.activo = 1 THEN 1 ELSE 0 END) as productos_activos,
+                MIN(p.precio) as precio_min,
+                MAX(p.precio) as precio_max,
+                AVG(p.precio) as precio_promedio
+            FROM categorias c
+            LEFT JOIN productos p ON c.id = p.categoria_id
+            GROUP BY c.id, c.nombre, c.descripcion, c.activo
+            ORDER BY c.nombre
+            """
+            
+            categorias = db.execute_query(query)
+            
+            # Crear Excel
+            wb = Workbook()
+            sheet = wb.active
+            sheet.title = "Resumen Categorías"
+            
+            # Título
+            sheet.merge_cells('A1:I1')
+            title_cell = sheet['A1']
+            title_cell.value = f"RESUMEN DE CATEGORÍAS - {datetime.now().strftime('%d/%m/%Y')}"
+            title_cell.font = Font(bold=True, size=14, color='FFFFFF')
+            title_cell.fill = PatternFill('solid', start_color='2980B9')
+            title_cell.alignment = Alignment(horizontal='center')
+            
+            # Headers
+            headers = ['ID', 'Categoría', 'Estado', 'Total Prod.', 'Activos', 'P. Mínimo', 'P. Máximo', 'P. Promedio', 'Descripción']
+            for col, header in enumerate(headers, 1):
+                cell = sheet.cell(row=3, column=col, value=header)
+                cell.font = Font(bold=True, color='FFFFFF')
+                cell.fill = PatternFill('solid', start_color='3498DB')
+                cell.alignment = Alignment(horizontal='center')
+            
+            # Datos
+            for row, categoria in enumerate(categorias, 4):
+                sheet.cell(row=row, column=1, value=categoria['id'])
+                sheet.cell(row=row, column=2, value=categoria['nombre'])
+                sheet.cell(row=row, column=3, value=categoria['estado'])
+                sheet.cell(row=row, column=4, value=categoria['total_productos'] or 0)
+                sheet.cell(row=row, column=5, value=categoria['productos_activos'] or 0)
+                sheet.cell(row=row, column=6, value=float(categoria['precio_min']) if categoria['precio_min'] else 0)
+                sheet.cell(row=row, column=7, value=float(categoria['precio_max']) if categoria['precio_max'] else 0)
+                sheet.cell(row=row, column=8, value=float(categoria['precio_promedio']) if categoria['precio_promedio'] else 0)
+                sheet.cell(row=row, column=9, value=categoria['descripcion'] or '')
+                
+                # Formatear precios
+                for col in [6, 7, 8]:
+                    sheet.cell(row=row, column=col).number_format = '$#,##0.00'
+            
+            # Ajustar columnas
+            sheet.column_dimensions['A'].width = 8
+            sheet.column_dimensions['B'].width = 20
+            sheet.column_dimensions['C'].width = 12
+            sheet.column_dimensions['D'].width = 12
+            sheet.column_dimensions['E'].width = 10
+            sheet.column_dimensions['F'].width = 12
+            sheet.column_dimensions['G'].width = 12
+            sheet.column_dimensions['H'].width = 12
+            sheet.column_dimensions['I'].width = 30
+            
+            # Guardar
+            filename = f"categorias_resumen_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            filepath = f"/mnt/user-data/outputs/{filename}"
+            wb.save(filepath)
+            
+            messagebox.showinfo("Éxito", f"Resumen de categorías generado\nArchivo: {filename}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Error generando resumen: {str(e)}")
 
     def logout(self):
         if auth.current_user and auth.current_user['tipo'] == 'cajero' and auth.current_turno:
