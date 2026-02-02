@@ -1966,21 +1966,19 @@ DIFERENCIA: ${diferencia:.2f}"""
         list_frame = tk.Frame(frame, bg='#f8f9fa')
         list_frame.pack(fill='both', expand=True)
         
-        # Treeview para categorías
-        columns = ('id', 'nombre', 'descripcion', 'activo', 'productos')
+        # Treeview para categorías (sin descripción)
+        columns = ('id', 'nombre', 'activo', 'productos')
         self.categorias_tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=15)
         
         self.categorias_tree.heading('id', text='ID')
         self.categorias_tree.heading('nombre', text='Nombre')
-        self.categorias_tree.heading('descripcion', text='Descripción')
         self.categorias_tree.heading('activo', text='Estado')
         self.categorias_tree.heading('productos', text='Productos')
         
         self.categorias_tree.column('id', width=50)
-        self.categorias_tree.column('nombre', width=150)
-        self.categorias_tree.column('descripcion', width=250)
-        self.categorias_tree.column('activo', width=80)
-        self.categorias_tree.column('productos', width=80)
+        self.categorias_tree.column('nombre', width=200)
+        self.categorias_tree.column('activo', width=100)
+        self.categorias_tree.column('productos', width=100)
         
         scrollbar_cat = ttk.Scrollbar(list_frame, orient='vertical', command=self.categorias_tree.yview)
         self.categorias_tree.configure(yscrollcommand=scrollbar_cat.set)
@@ -2034,7 +2032,7 @@ DIFERENCIA: ${diferencia:.2f}"""
         list_frame = tk.Frame(frame, bg='#f8f9fa')
         list_frame.pack(fill='both', expand=True)
         
-        columns = ('id', 'nombre', 'categoria', 'precio', 'activo', 'descripcion')
+        columns = ('id', 'nombre', 'categoria', 'precio', 'activo')
         self.productos_tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=15)
         
         self.productos_tree.heading('id', text='ID')
@@ -2042,14 +2040,12 @@ DIFERENCIA: ${diferencia:.2f}"""
         self.productos_tree.heading('categoria', text='Categoría')
         self.productos_tree.heading('precio', text='Precio')
         self.productos_tree.heading('activo', text='Estado')
-        self.productos_tree.heading('descripcion', text='Descripción')
         
-        self.productos_tree.column('id', width=50)
-        self.productos_tree.column('nombre', width=180)
-        self.productos_tree.column('categoria', width=120)
-        self.productos_tree.column('precio', width=80)
-        self.productos_tree.column('activo', width=80)
-        self.productos_tree.column('descripcion', width=200)
+        self.productos_tree.column('id', width=60)
+        self.productos_tree.column('nombre', width=220)
+        self.productos_tree.column('categoria', width=150)
+        self.productos_tree.column('precio', width=100)
+        self.productos_tree.column('activo', width=100)
         
         scrollbar_prod = ttk.Scrollbar(list_frame, orient='vertical', command=self.productos_tree.yview)
         self.productos_tree.configure(yscrollcommand=scrollbar_prod.set)
@@ -2102,12 +2098,12 @@ DIFERENCIA: ${diferencia:.2f}"""
             for item in self.categorias_tree.get_children():
                 self.categorias_tree.delete(item)
             
-            # Obtener categorías con conteo de productos
+            # Obtener categorías con conteo de productos (sin descripción)
             query = """
-            SELECT c.*, COUNT(p.id) as total_productos
+            SELECT c.id, c.nombre, c.activo, COUNT(p.id) as total_productos
             FROM categorias c
             LEFT JOIN productos p ON c.id = p.categoria_id AND p.activo = 1
-            GROUP BY c.id
+            GROUP BY c.id, c.nombre, c.activo
             ORDER BY c.nombre
             """
             categorias = db.execute_query(query)
@@ -2117,19 +2113,19 @@ DIFERENCIA: ${diferencia:.2f}"""
                 self.categorias_tree.insert('', 'end', values=(
                     categoria['id'],
                     categoria['nombre'],
-                    categoria['descripcion'] or '',
                     estado,
                     categoria['total_productos']
                 ))
                 
         except Exception as e:
             messagebox.showerror("Error", f"Error cargando categorías: {str(e)}")
+            print(f"DEBUG: Error en load_categorias: {e}")
     
     def nueva_categoria(self):
         """Crear nueva categoría"""
         dialog = tk.Toplevel(self.root)
         dialog.title("Nueva Categoría")
-        dialog.geometry("450x300")
+        dialog.geometry("400x250")
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
@@ -2151,20 +2147,14 @@ DIFERENCIA: ${diferencia:.2f}"""
         nombre_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
         nombre_entry.grid(row=0, column=1, pady=8, padx=10, sticky='ew')
         
-        tk.Label(fields_frame, text="Descripción:", font=('Arial', 11), 
-                bg='#f8f9fa').grid(row=1, column=0, sticky='w', pady=8)
-        desc_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
-        desc_entry.grid(row=1, column=1, pady=8, padx=10, sticky='ew')
-        
         activo_var = tk.BooleanVar(value=True)
         tk.Checkbutton(fields_frame, text="Categoría activa", variable=activo_var, 
-                      font=('Arial', 11), bg='#f8f9fa').grid(row=2, column=1, sticky='w', pady=8)
+                      font=('Arial', 11), bg='#f8f9fa').grid(row=1, column=1, sticky='w', pady=8)
         
         fields_frame.grid_columnconfigure(1, weight=1)
         
         def guardar_categoria():
             nombre = nombre_entry.get().strip()
-            descripcion = desc_entry.get().strip()
             activo = activo_var.get()
             
             if not nombre:
@@ -2173,8 +2163,8 @@ DIFERENCIA: ${diferencia:.2f}"""
                 return
             
             try:
-                query = "INSERT INTO categorias (nombre, descripcion, activo) VALUES (%s, %s, %s)"
-                result = db.execute_one(query, (nombre, descripcion or None, activo))
+                query = "INSERT INTO categorias (nombre, activo) VALUES (%s, %s)"
+                result = db.execute_one(query, (nombre, activo))
                 
                 if result:
                     messagebox.showinfo("Éxito", f"Categoría '{nombre}' creada correctamente")
@@ -2219,7 +2209,7 @@ DIFERENCIA: ${diferencia:.2f}"""
         # Dialog de edición
         dialog = tk.Toplevel(self.root)
         dialog.title("Editar Categoría")
-        dialog.geometry("450x300")
+        dialog.geometry("400x250")
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
@@ -2242,21 +2232,14 @@ DIFERENCIA: ${diferencia:.2f}"""
         nombre_entry.insert(0, categoria['nombre'])
         nombre_entry.grid(row=0, column=1, pady=8, padx=10, sticky='ew')
         
-        tk.Label(fields_frame, text="Descripción:", font=('Arial', 11), 
-                bg='#f8f9fa').grid(row=1, column=0, sticky='w', pady=8)
-        desc_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
-        desc_entry.insert(0, categoria['descripcion'] or '')
-        desc_entry.grid(row=1, column=1, pady=8, padx=10, sticky='ew')
-        
         activo_var = tk.BooleanVar(value=bool(categoria['activo']))
         tk.Checkbutton(fields_frame, text="Categoría activa", variable=activo_var, 
-                      font=('Arial', 11), bg='#f8f9fa').grid(row=2, column=1, sticky='w', pady=8)
+                      font=('Arial', 11), bg='#f8f9fa').grid(row=1, column=1, sticky='w', pady=8)
         
         fields_frame.grid_columnconfigure(1, weight=1)
         
         def actualizar_categoria():
             nombre = nombre_entry.get().strip()
-            descripcion = desc_entry.get().strip()
             activo = activo_var.get()
             
             if not nombre:
@@ -2265,8 +2248,8 @@ DIFERENCIA: ${diferencia:.2f}"""
                 return
             
             try:
-                query = "UPDATE categorias SET nombre = %s, descripcion = %s, activo = %s WHERE id = %s"
-                result = db.execute_query(query, (nombre, descripcion or None, activo, categoria_id))
+                query = "UPDATE categorias SET nombre = %s, activo = %s WHERE id = %s"
+                result = db.execute_query(query, (nombre, activo, categoria_id))
                 
                 if result:
                     messagebox.showinfo("Éxito", f"Categoría '{nombre}' actualizada correctamente")
@@ -2341,10 +2324,10 @@ DIFERENCIA: ${diferencia:.2f}"""
             
             # Obtener datos
             query = """
-            SELECT c.id, c.nombre, c.descripcion, c.activo, COUNT(p.id) as total_productos
+            SELECT c.id, c.nombre, c.activo, COUNT(p.id) as total_productos
             FROM categorias c
             LEFT JOIN productos p ON c.id = p.categoria_id AND p.activo = 1
-            GROUP BY c.id
+            GROUP BY c.id, c.nombre, c.activo
             ORDER BY c.nombre
             """
             categorias = db.execute_query(query)
@@ -2355,7 +2338,7 @@ DIFERENCIA: ${diferencia:.2f}"""
             sheet.title = "Categorías"
             
             # Headers
-            headers = ['ID', 'Nombre', 'Descripción', 'Activo', 'Total Productos']
+            headers = ['ID', 'Nombre', 'Activo', 'Total Productos']
             for col, header in enumerate(headers, 1):
                 cell = sheet.cell(row=1, column=col, value=header)
                 cell.font = Font(bold=True, color='FFFFFF')
@@ -2366,16 +2349,14 @@ DIFERENCIA: ${diferencia:.2f}"""
             for row, categoria in enumerate(categorias, 2):
                 sheet.cell(row=row, column=1, value=categoria['id'])
                 sheet.cell(row=row, column=2, value=categoria['nombre'])
-                sheet.cell(row=row, column=3, value=categoria['descripcion'] or '')
-                sheet.cell(row=row, column=4, value='Sí' if categoria['activo'] else 'No')
-                sheet.cell(row=row, column=5, value=categoria['total_productos'])
+                sheet.cell(row=row, column=3, value='Sí' if categoria['activo'] else 'No')
+                sheet.cell(row=row, column=4, value=categoria['total_productos'])
             
             # Ajustar ancho de columnas
             sheet.column_dimensions['A'].width = 8
-            sheet.column_dimensions['B'].width = 20
-            sheet.column_dimensions['C'].width = 30
-            sheet.column_dimensions['D'].width = 10
-            sheet.column_dimensions['E'].width = 15
+            sheet.column_dimensions['B'].width = 25
+            sheet.column_dimensions['C'].width = 10
+            sheet.column_dimensions['D'].width = 15
             
             # Guardar archivo
             filename = f"categorias_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
@@ -2420,9 +2401,9 @@ DIFERENCIA: ${diferencia:.2f}"""
                 # Extraer ID de la categoría del filtro
                 categoria_id = filtro.split('ID: ')[1].rstrip(')')
             
-            # Query base
+            # Query base (sin descripción para evitar errores)
             query = """
-            SELECT p.*, c.nombre as categoria_nombre
+            SELECT p.id, p.nombre, p.categoria_id, p.precio, p.activo, c.nombre as categoria_nombre
             FROM productos p
             JOIN categorias c ON p.categoria_id = c.id
             """
@@ -2443,12 +2424,12 @@ DIFERENCIA: ${diferencia:.2f}"""
                     producto['nombre'],
                     producto['categoria_nombre'],
                     f"${float(producto['precio']):.2f}",
-                    estado,
-                    producto['descripcion'] or ''
+                    estado
                 ))
                 
         except Exception as e:
             messagebox.showerror("Error", f"Error cargando productos: {str(e)}")
+            print(f"DEBUG: Error en load_productos: {e}")
     
     def nuevo_producto(self):
         """Crear nuevo producto"""
