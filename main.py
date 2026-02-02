@@ -2488,22 +2488,15 @@ DIFERENCIA: ${diferencia:.2f}"""
         precio_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
         precio_entry.grid(row=2, column=1, pady=8, padx=10, sticky='ew')
         
-        # Descripción
-        tk.Label(fields_frame, text="Descripción:", font=('Arial', 11), 
-                bg='#f8f9fa').grid(row=3, column=0, sticky='nw', pady=8)
-        desc_text = tk.Text(fields_frame, width=30, height=3, font=('Arial', 11), relief='solid', bd=1)
-        desc_text.grid(row=3, column=1, pady=8, padx=10, sticky='ew')
-        
         activo_var = tk.BooleanVar(value=True)
         tk.Checkbutton(fields_frame, text="Producto activo", variable=activo_var, 
-                      font=('Arial', 11), bg='#f8f9fa').grid(row=4, column=1, sticky='w', pady=8)
+                      font=('Arial', 11), bg='#f8f9fa').grid(row=3, column=1, sticky='w', pady=8)
         
         fields_frame.grid_columnconfigure(1, weight=1)
         
         def guardar_producto():
             nombre = nombre_entry.get().strip()
             precio_str = precio_entry.get().strip()
-            descripcion = desc_text.get('1.0', tk.END).strip()
             activo = activo_var.get()
             categoria_idx = categoria_combo.current()
             
@@ -2531,8 +2524,8 @@ DIFERENCIA: ${diferencia:.2f}"""
             categoria_id = categoria_ids[categoria_idx]
             
             try:
-                query = "INSERT INTO productos (nombre, categoria_id, precio, descripcion, activo) VALUES (%s, %s, %s, %s, %s)"
-                result = db.execute_one(query, (nombre, categoria_id, precio, descripcion or None, activo))
+                query = "INSERT INTO productos (nombre, categoria_id, precio, activo) VALUES (%s, %s, %s, %s)"
+                result = db.execute_one(query, (nombre, categoria_id, precio, activo))
                 
                 if result:
                     messagebox.showinfo("Éxito", f"Producto '{nombre}' creado correctamente")
@@ -2640,23 +2633,15 @@ DIFERENCIA: ${diferencia:.2f}"""
         precio_entry.insert(0, str(float(producto['precio'])))
         precio_entry.grid(row=2, column=1, pady=8, padx=10, sticky='ew')
         
-        # Descripción
-        tk.Label(fields_frame, text="Descripción:", font=('Arial', 11), 
-                bg='#f8f9fa').grid(row=3, column=0, sticky='nw', pady=8)
-        desc_text = tk.Text(fields_frame, width=30, height=3, font=('Arial', 11), relief='solid', bd=1)
-        desc_text.insert('1.0', producto['descripcion'] or '')
-        desc_text.grid(row=3, column=1, pady=8, padx=10, sticky='ew')
-        
         activo_var = tk.BooleanVar(value=bool(producto['activo']))
         tk.Checkbutton(fields_frame, text="Producto activo", variable=activo_var, 
-                      font=('Arial', 11), bg='#f8f9fa').grid(row=4, column=1, sticky='w', pady=8)
+                      font=('Arial', 11), bg='#f8f9fa').grid(row=3, column=1, sticky='w', pady=8)
         
         fields_frame.grid_columnconfigure(1, weight=1)
         
         def actualizar_producto():
             nombre = nombre_entry.get().strip()
             precio_str = precio_entry.get().strip()
-            descripcion = desc_text.get('1.0', tk.END).strip()
             activo = activo_var.get()
             categoria_idx = categoria_combo.current()
             
@@ -2684,8 +2669,8 @@ DIFERENCIA: ${diferencia:.2f}"""
             categoria_id = categoria_ids[categoria_idx]
             
             try:
-                query = "UPDATE productos SET nombre = %s, categoria_id = %s, precio = %s, descripcion = %s, activo = %s WHERE id = %s"
-                result = db.execute_query(query, (nombre, categoria_id, precio, descripcion or None, activo, producto_id))
+                query = "UPDATE productos SET nombre = %s, categoria_id = %s, precio = %s, activo = %s WHERE id = %s"
+                result = db.execute_query(query, (nombre, categoria_id, precio, activo, producto_id))
                 
                 if result:
                     messagebox.showinfo("Éxito", f"Producto '{nombre}' actualizado correctamente")
@@ -2759,7 +2744,7 @@ DIFERENCIA: ${diferencia:.2f}"""
             
             # Obtener datos
             query = """
-            SELECT p.id, p.nombre, c.nombre as categoria, p.precio, p.descripcion, p.activo
+            SELECT p.id, p.nombre, c.nombre as categoria, p.precio, p.activo
             FROM productos p
             JOIN categorias c ON p.categoria_id = c.id
             ORDER BY c.nombre, p.nombre
@@ -2772,7 +2757,7 @@ DIFERENCIA: ${diferencia:.2f}"""
             sheet.title = "Productos"
             
             # Headers
-            headers = ['ID', 'Nombre', 'Categoría', 'Precio', 'Descripción', 'Activo']
+            headers = ['ID', 'Nombre', 'Categoría', 'Precio', 'Activo']
             for col, header in enumerate(headers, 1):
                 cell = sheet.cell(row=1, column=col, value=header)
                 cell.font = Font(bold=True, color='FFFFFF')
@@ -2785,8 +2770,7 @@ DIFERENCIA: ${diferencia:.2f}"""
                 sheet.cell(row=row, column=2, value=producto['nombre'])
                 sheet.cell(row=row, column=3, value=producto['categoria'])
                 sheet.cell(row=row, column=4, value=float(producto['precio']))
-                sheet.cell(row=row, column=5, value=producto['descripcion'] or '')
-                sheet.cell(row=row, column=6, value='Sí' if producto['activo'] else 'No')
+                sheet.cell(row=row, column=5, value='Sí' if producto['activo'] else 'No')
             
             # Formatear precios
             for row in range(2, len(productos) + 2):
@@ -2798,8 +2782,7 @@ DIFERENCIA: ${diferencia:.2f}"""
             sheet.column_dimensions['B'].width = 25
             sheet.column_dimensions['C'].width = 18
             sheet.column_dimensions['D'].width = 12
-            sheet.column_dimensions['E'].width = 35
-            sheet.column_dimensions['F'].width = 10
+            sheet.column_dimensions['E'].width = 10
             
             # Guardar archivo
             filename = f"productos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
@@ -2818,8 +2801,7 @@ DIFERENCIA: ${diferencia:.2f}"""
             "1. El archivo Excel debe contener las columnas:\n"
             "   - nombre (obligatorio)\n"
             "   - categoria (obligatorio - debe existir)\n"
-            "   - precio (obligatorio - número positivo)\n"
-            "   - descripcion (opcional)\n\n"
+            "   - precio (obligatorio - número positivo)\n\n"
             "2. Use 'Exportar Productos' para ver el formato correcto\n\n"
             "Esta función estará disponible próximamente.")
 
@@ -3066,7 +3048,6 @@ DIFERENCIA: ${diferencia:.2f}"""
                 p.nombre,
                 c.nombre as categoria,
                 p.precio,
-                p.descripcion,
                 CASE WHEN p.activo = 1 THEN 'Activo' ELSE 'Inactivo' END as estado,
                 COALESCE(ventas.total_vendido, 0) as total_vendido,
                 COALESCE(ventas.ingresos, 0) as ingresos_totales
@@ -3093,7 +3074,7 @@ DIFERENCIA: ${diferencia:.2f}"""
             sheet_productos.title = "Inventario Completo"
             
             # Título
-            sheet_productos.merge_cells('A1:H1')
+            sheet_productos.merge_cells('A1:G1')
             title_cell = sheet_productos['A1']
             title_cell.value = f"INVENTARIO COMPLETO - {datetime.now().strftime('%d/%m/%Y %H:%M')}"
             title_cell.font = Font(bold=True, size=14, color='FFFFFF')
@@ -3101,7 +3082,7 @@ DIFERENCIA: ${diferencia:.2f}"""
             title_cell.alignment = Alignment(horizontal='center')
             
             # Headers
-            headers = ['ID', 'Nombre', 'Categoría', 'Precio', 'Estado', 'Vendido', 'Ingresos', 'Descripción']
+            headers = ['ID', 'Nombre', 'Categoría', 'Precio', 'Estado', 'Vendido', 'Ingresos']
             for col, header in enumerate(headers, 1):
                 cell = sheet_productos.cell(row=3, column=col, value=header)
                 cell.font = Font(bold=True, color='FFFFFF')
@@ -3117,7 +3098,6 @@ DIFERENCIA: ${diferencia:.2f}"""
                 sheet_productos.cell(row=row, column=5, value=producto['estado'])
                 sheet_productos.cell(row=row, column=6, value=producto['total_vendido'])
                 sheet_productos.cell(row=row, column=7, value=float(producto['ingresos_totales']))
-                sheet_productos.cell(row=row, column=8, value=producto['descripcion'] or '')
                 
                 # Formatear precios
                 sheet_productos.cell(row=row, column=4).number_format = '$#,##0.00'
@@ -3131,7 +3111,6 @@ DIFERENCIA: ${diferencia:.2f}"""
             sheet_productos.column_dimensions['E'].width = 12
             sheet_productos.column_dimensions['F'].width = 12
             sheet_productos.column_dimensions['G'].width = 12
-            sheet_productos.column_dimensions['H'].width = 35
             
             # Guardar
             filename = f"inventario_completo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
@@ -3155,7 +3134,6 @@ DIFERENCIA: ${diferencia:.2f}"""
             SELECT 
                 c.id,
                 c.nombre,
-                c.descripcion,
                 CASE WHEN c.activo = 1 THEN 'Activa' ELSE 'Inactiva' END as estado,
                 COUNT(p.id) as total_productos,
                 SUM(CASE WHEN p.activo = 1 THEN 1 ELSE 0 END) as productos_activos,
@@ -3164,7 +3142,7 @@ DIFERENCIA: ${diferencia:.2f}"""
                 AVG(p.precio) as precio_promedio
             FROM categorias c
             LEFT JOIN productos p ON c.id = p.categoria_id
-            GROUP BY c.id, c.nombre, c.descripcion, c.activo
+            GROUP BY c.id, c.nombre, c.activo
             ORDER BY c.nombre
             """
             
@@ -3176,7 +3154,7 @@ DIFERENCIA: ${diferencia:.2f}"""
             sheet.title = "Resumen Categorías"
             
             # Título
-            sheet.merge_cells('A1:I1')
+            sheet.merge_cells('A1:H1')
             title_cell = sheet['A1']
             title_cell.value = f"RESUMEN DE CATEGORÍAS - {datetime.now().strftime('%d/%m/%Y')}"
             title_cell.font = Font(bold=True, size=14, color='FFFFFF')
@@ -3184,7 +3162,7 @@ DIFERENCIA: ${diferencia:.2f}"""
             title_cell.alignment = Alignment(horizontal='center')
             
             # Headers
-            headers = ['ID', 'Categoría', 'Estado', 'Total Prod.', 'Activos', 'P. Mínimo', 'P. Máximo', 'P. Promedio', 'Descripción']
+            headers = ['ID', 'Categoría', 'Estado', 'Total Prod.', 'Activos', 'P. Mínimo', 'P. Máximo', 'P. Promedio']
             for col, header in enumerate(headers, 1):
                 cell = sheet.cell(row=3, column=col, value=header)
                 cell.font = Font(bold=True, color='FFFFFF')
@@ -3201,7 +3179,6 @@ DIFERENCIA: ${diferencia:.2f}"""
                 sheet.cell(row=row, column=6, value=float(categoria['precio_min']) if categoria['precio_min'] else 0)
                 sheet.cell(row=row, column=7, value=float(categoria['precio_max']) if categoria['precio_max'] else 0)
                 sheet.cell(row=row, column=8, value=float(categoria['precio_promedio']) if categoria['precio_promedio'] else 0)
-                sheet.cell(row=row, column=9, value=categoria['descripcion'] or '')
                 
                 # Formatear precios
                 for col in [6, 7, 8]:
@@ -3216,7 +3193,6 @@ DIFERENCIA: ${diferencia:.2f}"""
             sheet.column_dimensions['F'].width = 12
             sheet.column_dimensions['G'].width = 12
             sheet.column_dimensions['H'].width = 12
-            sheet.column_dimensions['I'].width = 30
             
             # Guardar
             filename = f"categorias_resumen_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
