@@ -2828,10 +2828,18 @@ DIFERENCIA: ${diferencia:.2f}"""
         """Cargar opciones de filtro de roles"""
         try:
             roles = ['Todos los roles', 'admin', 'gerente', 'cajero', 'supervisor']
-            self.role_filter['values'] = roles
-            self.role_filter.set('Todos los roles')
+            if hasattr(self, 'role_filter'):
+                self.role_filter['values'] = roles
+                self.role_filter.set('Todos los roles')
         except Exception as e:
             print(f"Error cargando filtro de roles: {e}")
+            # Configurar valores por defecto
+            try:
+                if hasattr(self, 'role_filter'):
+                    self.role_filter['values'] = ['Todos los roles']
+                    self.role_filter.set('Todos los roles')
+            except:
+                pass
     
     def load_users(self):
         """Cargar usuarios en el treeview"""
@@ -2840,13 +2848,35 @@ DIFERENCIA: ${diferencia:.2f}"""
             for item in self.users_tree.get_children():
                 self.users_tree.delete(item)
             
-            # Obtener filtros
-            search_text = self.user_search_var.get().lower()
-            role_filter = self.role_filter.get()
+            # Verificar conexión
+            if not db.connection:
+                print("DEBUG: No hay conexión a BD, intentando conectar...")
+                if not db.connect():
+                    messagebox.showerror("Error de Conexión", "No se pudo conectar a la base de datos")
+                    return
             
-            # Query base
+            # Obtener filtros
+            search_text = self.user_search_var.get().lower() if hasattr(self, 'user_search_var') else ""
+            role_filter = self.role_filter.get() if hasattr(self, 'role_filter') else "Todos los roles"
+            
+            # Query simplificada para verificar si la tabla existe
+            try:
+                test_query = "SELECT COUNT(*) as total FROM usuarios LIMIT 1"
+                test_result = db.execute_one(test_query)
+                if test_result is None:
+                    print("DEBUG: La tabla usuarios no existe o está vacía")
+                    # Crear usuario por defecto si no existe
+                    self.create_default_users()
+                    return
+            except Exception as e:
+                print(f"DEBUG: Error verificando tabla usuarios: {e}")
+                messagebox.showerror("Error", f"Tabla usuarios no existe.\nError: {str(e)}")
+                return
+            
+            # Query base para obtener usuarios
             query = """
-            SELECT u.id, u.nombre, u.usuario, u.rol, u.email, u.activo, 
+            SELECT u.id, u.nombre, u.usuario, u.rol, 
+                   COALESCE(u.email, '') as email, u.activo, 
                    u.ultimo_acceso, u.fecha_creacion
             FROM usuarios u
             WHERE 1=1
@@ -2855,7 +2885,7 @@ DIFERENCIA: ${diferencia:.2f}"""
             
             # Aplicar filtro de búsqueda
             if search_text:
-                query += " AND (LOWER(u.nombre) LIKE %s OR LOWER(u.usuario) LIKE %s OR LOWER(u.email) LIKE %s)"
+                query += " AND (LOWER(u.nombre) LIKE %s OR LOWER(u.usuario) LIKE %s OR LOWER(COALESCE(u.email,'')) LIKE %s)"
                 search_param = f"%{search_text}%"
                 params.extend([search_param, search_param, search_param])
             
@@ -2866,30 +2896,146 @@ DIFERENCIA: ${diferencia:.2f}"""
             
             query += " ORDER BY u.activo DESC, u.nombre"
             
+            print(f"DEBUG: Ejecutando query: {query}")
+            print(f"DEBUG: Parámetros: {params}")
+            
             usuarios = db.execute_query(query, params)
             
-            for usuario in usuarios:
-                estado = "✅ Activo" if usuario['activo'] else "❌ Inactivo"
-                ultimo_acceso = ""
-                if usuario['ultimo_acceso']:
-                    ultimo_acceso = usuario['ultimo_acceso'].strftime('%d/%m/%Y %H:%M')
-                
-                # Determinar color de rol
-                rol_display = usuario['rol'].upper()
-                
+            if usuarios is None:
+                print("DEBUG: Query devolvió None")
+                messagebox.showerror("Error", "Error ejecutando consulta de usuarios")
+                return
+            
+            if len(usuarios) == 0:
+                print("DEBUG: No se encontraron usuarios")
+                # Insertar fila indicando que no hay usuarios
                 self.users_tree.insert('', 'end', values=(
-                    usuario['id'],
-                    usuario['nombre'],
-                    usuario['usuario'],
-                    rol_display,
-                    usuario['email'] or '',
-                    estado,
-                    ultimo_acceso
+                    '', 'No hay usuarios', '', '', '', '', '', ''
                 ))
+                return
+            
+            print(f"DEBUG: Se encontraron {len(usuarios)} usuarios")
+            
+            for usuario in usuarios:
+                try:
+                    estado = "✅ Activo" if usuario['activo'] else "❌ Inactivo"
+                    ultimo_acceso = ""
+                    if usuario['ultimo_acceso']:
+                        ultimo_acceso = usuario['ultimo_acceso'].strftime('%d/%m/%Y %H:%M')
+                    
+                    # Determinar color de rol
+                    rol_display = usuario['rol'].upper()
+                    
+                    self.users_tree.insert('', 'end', values=(
+                        usuario['id'],
+                        usuario['nombre'],
+                        usuario['usuario'],
+                        rol_display,
+                        usuario['email'] or '',
+                        estado,
+                        ultimo_acceso
+                    ))
+                except Exception as e:
+                    print(f"DEBUG: Error procesando usuario {usuario}: {e}")
+                    continue
                 
         except Exception as e:
+            print(f"DEBUG: Error general en load_users: {e}")
             messagebox.showerror("Error", f"Error cargando usuarios: {str(e)}")
-            print(f"DEBUG: Error en load_users: {e}")
+    
+    def create_default_users(self):
+        """Crear usuarios por defecto si no existen"""
+        try:
+            print("DEBUG: Creando usuarios por defecto...")
+            
+            # Verificar si la tabla usuarios existe
+            try:
+                create_table_query = """
+                CREATE TABLE IF NOT EXISTS usuarios (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    nombre VARCHAR(100) NOT NULL,
+                    usuario VARCHAR(50) NOT NULL UNIQUE,
+                    password VARCHAR(255) NOT NULL,
+                    email VARCHAR(100),
+                    rol ENUM('admin', 'gerente', 'cajero', 'supervisor') DEFAULT 'cajero',
+                    activo BOOLEAN DEFAULT TRUE,
+                    ultimo_acceso TIMESTAMP NULL,
+                    fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """
+                
+                result = db.execute_query(create_table_query)
+                if result is not None:
+                    print("DEBUG: Tabla usuarios creada/verificada")
+                else:
+                    print("DEBUG: Error creando tabla usuarios")
+                    return
+                
+            except Exception as e:
+                print(f"DEBUG: Error creando tabla: {e}")
+                return
+            
+            # Crear usuario administrador por defecto
+            import hashlib
+            password_hash = hashlib.sha256("admin".encode()).hexdigest()
+            
+            # Verificar si ya existe el usuario admin
+            check_query = "SELECT COUNT(*) as count FROM usuarios WHERE usuario = 'admin'"
+            result = db.execute_one(check_query)
+            
+            if result and result['count'] == 0:
+                insert_query = """
+                INSERT INTO usuarios (nombre, usuario, password, email, rol, activo) 
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """
+                result = db.execute_one(insert_query, (
+                    'Administrador del Sistema', 
+                    'admin', 
+                    password_hash, 
+                    'admin@restaurant.com', 
+                    'admin', 
+                    True
+                ))
+                
+                if result:
+                    print("DEBUG: Usuario administrador creado")
+                    messagebox.showinfo("Usuario Creado", 
+                        "Se creó el usuario administrador por defecto:\n\n"
+                        "Usuario: admin\n"
+                        "Contraseña: admin\n\n"
+                        "¡Cambie esta contraseña inmediatamente!")
+                else:
+                    print("DEBUG: Error creando usuario admin")
+                    
+            # Crear el usuario actual si no existe en la tabla
+            if hasattr(auth, 'current_user') and auth.current_user:
+                current_username = auth.current_user.get('usuario', 'poncho')
+                check_current = "SELECT COUNT(*) as count FROM usuarios WHERE usuario = %s"
+                result = db.execute_one(check_current, (current_username,))
+                
+                if result and result['count'] == 0:
+                    # Crear el usuario actual
+                    current_password_hash = hashlib.sha256("poncho".encode()).hexdigest()
+                    insert_current = """
+                    INSERT INTO usuarios (nombre, usuario, password, email, rol, activo) 
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """
+                    db.execute_one(insert_current, (
+                        auth.current_user.get('nombre', 'Usuario Poncho'), 
+                        current_username, 
+                        current_password_hash, 
+                        'poncho@restaurant.com', 
+                        'admin', 
+                        True
+                    ))
+                    print(f"DEBUG: Usuario actual '{current_username}' agregado a la tabla")
+            
+            # Recargar usuarios
+            self.load_users()
+            
+        except Exception as e:
+            print(f"DEBUG: Error creando usuarios por defecto: {e}")
+            messagebox.showerror("Error", f"Error creando usuarios por defecto: {str(e)}")
     
     def nuevo_usuario(self):
         """Crear nuevo usuario"""
