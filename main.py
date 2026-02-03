@@ -2855,103 +2855,216 @@ DIFERENCIA: ${diferencia:.2f}"""
                     messagebox.showerror("Error de Conexión", "No se pudo conectar a la base de datos")
                     return
             
-            # Obtener filtros
-            search_text = self.user_search_var.get().lower() if hasattr(self, 'user_search_var') else ""
-            role_filter = self.role_filter.get() if hasattr(self, 'role_filter') else "Todos los roles"
-            
-            # Query simplificada para verificar si la tabla existe
+            # Primero verificar la estructura de la tabla usuarios
             try:
-                test_query = "SELECT COUNT(*) as total FROM usuarios LIMIT 1"
-                test_result = db.execute_one(test_query)
-                if test_result is None:
-                    print("DEBUG: La tabla usuarios no existe o está vacía")
-                    # Crear usuario por defecto si no existe
-                    self.create_default_users()
-                    return
-            except Exception as e:
-                print(f"DEBUG: Error verificando tabla usuarios: {e}")
-                messagebox.showerror("Error", f"Tabla usuarios no existe.\nError: {str(e)}")
-                return
-            
-            # Query base para obtener usuarios
-            query = """
-            SELECT u.id, u.nombre, u.usuario, u.rol, 
-                   COALESCE(u.email, '') as email, u.activo, 
-                   u.ultimo_acceso, u.fecha_creacion
-            FROM usuarios u
-            WHERE 1=1
-            """
-            params = []
-            
-            # Aplicar filtro de búsqueda
-            if search_text:
-                query += " AND (LOWER(u.nombre) LIKE %s OR LOWER(u.usuario) LIKE %s OR LOWER(COALESCE(u.email,'')) LIKE %s)"
-                search_param = f"%{search_text}%"
-                params.extend([search_param, search_param, search_param])
-            
-            # Aplicar filtro de rol
-            if role_filter != 'Todos los roles':
-                query += " AND u.rol = %s"
-                params.append(role_filter)
-            
-            query += " ORDER BY u.activo DESC, u.nombre"
-            
-            print(f"DEBUG: Ejecutando query: {query}")
-            print(f"DEBUG: Parámetros: {params}")
-            
-            usuarios = db.execute_query(query, params)
-            
-            if usuarios is None:
-                print("DEBUG: Query devolvió None")
-                messagebox.showerror("Error", "Error ejecutando consulta de usuarios")
-                return
-            
-            if len(usuarios) == 0:
-                print("DEBUG: No se encontraron usuarios")
-                # Insertar fila indicando que no hay usuarios
-                self.users_tree.insert('', 'end', values=(
-                    '', 'No hay usuarios', '', '', '', '', '', ''
-                ))
-                return
-            
-            print(f"DEBUG: Se encontraron {len(usuarios)} usuarios")
-            
-            for usuario in usuarios:
+                structure_query = "DESCRIBE usuarios"
+                columns_info = db.execute_query(structure_query)
+                print(f"DEBUG: Estructura tabla usuarios: {columns_info}")
+                
+                if columns_info:
+                    available_columns = [col['Field'] for col in columns_info]
+                    print(f"DEBUG: Columnas disponibles: {available_columns}")
+                    
+                    # Mapear campos según lo que existe en la BD
+                    field_mapping = {
+                        'user_field': None,
+                        'email_field': None,
+                        'role_field': None,
+                        'active_field': None,
+                        'last_access_field': None,
+                        'created_field': None
+                    }
+                    
+                    # Detectar campos comunes por nombres posibles
+                    for col in available_columns:
+                        col_lower = col.lower()
+                        if col_lower in ['usuario', 'username', 'user', 'login']:
+                            field_mapping['user_field'] = col
+                        elif col_lower in ['email', 'correo', 'mail']:
+                            field_mapping['email_field'] = col
+                        elif col_lower in ['rol', 'role', 'tipo_usuario', 'perfil']:
+                            field_mapping['role_field'] = col
+                        elif col_lower in ['activo', 'active', 'estado', 'enabled']:
+                            field_mapping['active_field'] = col
+                        elif col_lower in ['ultimo_acceso', 'last_access', 'last_login']:
+                            field_mapping['last_access_field'] = col
+                        elif col_lower in ['fecha_creacion', 'created_at', 'creation_date']:
+                            field_mapping['created_field'] = col
+                    
+                    print(f"DEBUG: Mapeo de campos: {field_mapping}")
+                    
+                    # Construir query adaptativa
+                    select_fields = ['u.id', 'u.nombre']
+                    
+                    if field_mapping['user_field']:
+                        select_fields.append(f"u.{field_mapping['user_field']} as usuario")
+                    else:
+                        select_fields.append("'N/A' as usuario")
+                    
+                    if field_mapping['role_field']:
+                        select_fields.append(f"u.{field_mapping['role_field']} as rol")
+                    else:
+                        select_fields.append("'usuario' as rol")
+                    
+                    if field_mapping['email_field']:
+                        select_fields.append(f"COALESCE(u.{field_mapping['email_field']}, '') as email")
+                    else:
+                        select_fields.append("'' as email")
+                    
+                    if field_mapping['active_field']:
+                        select_fields.append(f"u.{field_mapping['active_field']} as activo")
+                    else:
+                        select_fields.append("1 as activo")
+                    
+                    if field_mapping['last_access_field']:
+                        select_fields.append(f"u.{field_mapping['last_access_field']} as ultimo_acceso")
+                    else:
+                        select_fields.append("NULL as ultimo_acceso")
+                    
+                    if field_mapping['created_field']:
+                        select_fields.append(f"u.{field_mapping['created_field']} as fecha_creacion")
+                    else:
+                        select_fields.append("NOW() as fecha_creacion")
+                    
+                    # Obtener filtros si existen
+                    search_text = getattr(self, 'user_search_var', tk.StringVar()).get().lower()
+                    role_filter = getattr(self, 'role_filter', None)
+                    if role_filter:
+                        role_filter_value = role_filter.get()
+                    else:
+                        role_filter_value = "Todos los roles"
+                    
+                    # Construir query final
+                    query = f"SELECT {', '.join(select_fields)} FROM usuarios u WHERE 1=1"
+                    params = []
+                    
+                    # Aplicar filtro de búsqueda si existe campo de usuario
+                    if search_text and field_mapping['user_field']:
+                        query += f" AND (LOWER(u.nombre) LIKE %s OR LOWER(u.{field_mapping['user_field']}) LIKE %s)"
+                        search_param = f"%{search_text}%"
+                        params.extend([search_param, search_param])
+                    elif search_text:
+                        query += " AND LOWER(u.nombre) LIKE %s"
+                        params.append(f"%{search_text}%")
+                    
+                    # Aplicar filtro de rol si existe
+                    if role_filter_value != 'Todos los roles' and field_mapping['role_field']:
+                        query += f" AND u.{field_mapping['role_field']} = %s"
+                        params.append(role_filter_value)
+                    
+                    # Ordenar por activo y nombre
+                    if field_mapping['active_field']:
+                        query += f" ORDER BY u.{field_mapping['active_field']} DESC, u.nombre"
+                    else:
+                        query += " ORDER BY u.nombre"
+                    
+                    print(f"DEBUG: Query adaptativa: {query}")
+                    print(f"DEBUG: Parámetros: {params}")
+                    
+                    # Ejecutar query adaptativa
+                    usuarios = db.execute_query(query, params)
+                    
+                    if usuarios is None:
+                        print("DEBUG: Query devolvió None - Error en la consulta")
+                        messagebox.showerror("Error", "Error ejecutando consulta de usuarios")
+                        return
+                    
+                    if len(usuarios) == 0:
+                        print("DEBUG: No se encontraron usuarios")
+                        self.users_tree.insert('', 'end', values=(
+                            '', 'No hay usuarios', '', '', '', '', ''
+                        ))
+                        return
+                    
+                    print(f"DEBUG: Se encontraron {len(usuarios)} usuarios")
+                    
+                    # Mostrar usuarios
+                    for usuario in usuarios:
+                        try:
+                            estado = "✅ Activo" if usuario.get('activo', True) else "❌ Inactivo"
+                            ultimo_acceso = ""
+                            if usuario.get('ultimo_acceso'):
+                                try:
+                                    ultimo_acceso = usuario['ultimo_acceso'].strftime('%d/%m/%Y %H:%M')
+                                except:
+                                    ultimo_acceso = str(usuario['ultimo_acceso'])
+                            
+                            rol_display = str(usuario.get('rol', 'Usuario')).upper()
+                            
+                            self.users_tree.insert('', 'end', values=(
+                                usuario.get('id', ''),
+                                usuario.get('nombre', 'Sin nombre'),
+                                usuario.get('usuario', 'N/A'),
+                                rol_display,
+                                usuario.get('email', ''),
+                                estado,
+                                ultimo_acceso
+                            ))
+                        except Exception as e:
+                            print(f"DEBUG: Error procesando usuario {usuario}: {e}")
+                            continue
+                
+                else:
+                    print("DEBUG: No se pudo obtener estructura de la tabla")
+                    messagebox.showerror("Error", "No se pudo verificar la estructura de la tabla usuarios")
+                    
+            except Exception as struct_error:
+                print(f"DEBUG: Error verificando estructura: {struct_error}")
+                # Si no podemos verificar la estructura, intentar con campos básicos
                 try:
-                    estado = "✅ Activo" if usuario['activo'] else "❌ Inactivo"
-                    ultimo_acceso = ""
-                    if usuario['ultimo_acceso']:
-                        ultimo_acceso = usuario['ultimo_acceso'].strftime('%d/%m/%Y %H:%M')
+                    basic_query = "SELECT id, nombre FROM usuarios LIMIT 5"
+                    basic_result = db.execute_query(basic_query)
                     
-                    # Determinar color de rol
-                    rol_display = usuario['rol'].upper()
-                    
-                    self.users_tree.insert('', 'end', values=(
-                        usuario['id'],
-                        usuario['nombre'],
-                        usuario['usuario'],
-                        rol_display,
-                        usuario['email'] or '',
-                        estado,
-                        ultimo_acceso
-                    ))
-                except Exception as e:
-                    print(f"DEBUG: Error procesando usuario {usuario}: {e}")
-                    continue
+                    if basic_result is not None:
+                        print("DEBUG: Usando estructura básica (solo id, nombre)")
+                        for usuario in basic_result:
+                            self.users_tree.insert('', 'end', values=(
+                                usuario.get('id', ''),
+                                usuario.get('nombre', 'Sin nombre'),
+                                'N/A',  # usuario
+                                'USUARIO',  # rol
+                                '',  # email
+                                '✅ Activo',  # estado
+                                ''  # ultimo_acceso
+                            ))
+                    else:
+                        messagebox.showerror("Error", "La tabla usuarios existe pero no se puede acceder")
+                        
+                except Exception as basic_error:
+                    print(f"DEBUG: Error con consulta básica: {basic_error}")
+                    messagebox.showerror("Error", "No se puede acceder a la tabla usuarios")
                 
         except Exception as e:
             print(f"DEBUG: Error general en load_users: {e}")
             messagebox.showerror("Error", f"Error cargando usuarios: {str(e)}")
     
     def create_default_users(self):
-        """Crear usuarios por defecto si no existen"""
+        """Crear usuarios por defecto - versión adaptada"""
         try:
-            print("DEBUG: Creando usuarios por defecto...")
+            print("DEBUG: Intentando adaptar tabla usuarios existente...")
             
-            # Verificar si la tabla usuarios existe
-            try:
+            # Verificar estructura actual
+            structure_query = "DESCRIBE usuarios"
+            columns_info = db.execute_query(structure_query)
+            
+            if columns_info:
+                available_columns = [col['Field'] for col in columns_info]
+                print(f"DEBUG: Tabla usuarios existe con columnas: {available_columns}")
+                
+                # Si la tabla tiene estructura básica, mostrar información
+                messagebox.showinfo("Tabla Usuarios Detectada", 
+                    "Se detectó una tabla 'usuarios' existente.\n\n"
+                    f"Columnas disponibles: {', '.join(available_columns)}\n\n"
+                    "El módulo se adaptará a la estructura existente.")
+                
+                # Recargar con la estructura existente
+                self.load_users()
+                
+            else:
+                print("DEBUG: No se pudo verificar la estructura, creando tabla nueva...")
+                # Crear tabla con estructura completa
                 create_table_query = """
-                CREATE TABLE IF NOT EXISTS usuarios (
+                CREATE TABLE IF NOT EXISTS usuarios_new (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     nombre VARCHAR(100) NOT NULL,
                     usuario VARCHAR(50) NOT NULL UNIQUE,
@@ -2966,521 +3079,45 @@ DIFERENCIA: ${diferencia:.2f}"""
                 
                 result = db.execute_query(create_table_query)
                 if result is not None:
-                    print("DEBUG: Tabla usuarios creada/verificada")
-                else:
-                    print("DEBUG: Error creando tabla usuarios")
-                    return
+                    messagebox.showinfo("Nueva Tabla", 
+                        "Se creó una nueva tabla 'usuarios_new' con estructura completa.\n"
+                        "Considere migrar los datos existentes.")
                 
-            except Exception as e:
-                print(f"DEBUG: Error creando tabla: {e}")
-                return
-            
-            # Crear usuario administrador por defecto
-            import hashlib
-            password_hash = hashlib.sha256("admin".encode()).hexdigest()
-            
-            # Verificar si ya existe el usuario admin
-            check_query = "SELECT COUNT(*) as count FROM usuarios WHERE usuario = 'admin'"
-            result = db.execute_one(check_query)
-            
-            if result and result['count'] == 0:
-                insert_query = """
-                INSERT INTO usuarios (nombre, usuario, password, email, rol, activo) 
-                VALUES (%s, %s, %s, %s, %s, %s)
-                """
-                result = db.execute_one(insert_query, (
-                    'Administrador del Sistema', 
-                    'admin', 
-                    password_hash, 
-                    'admin@restaurant.com', 
-                    'admin', 
-                    True
-                ))
-                
-                if result:
-                    print("DEBUG: Usuario administrador creado")
-                    messagebox.showinfo("Usuario Creado", 
-                        "Se creó el usuario administrador por defecto:\n\n"
-                        "Usuario: admin\n"
-                        "Contraseña: admin\n\n"
-                        "¡Cambie esta contraseña inmediatamente!")
-                else:
-                    print("DEBUG: Error creando usuario admin")
-                    
-            # Crear el usuario actual si no existe en la tabla
-            if hasattr(auth, 'current_user') and auth.current_user:
-                current_username = auth.current_user.get('usuario', 'poncho')
-                check_current = "SELECT COUNT(*) as count FROM usuarios WHERE usuario = %s"
-                result = db.execute_one(check_current, (current_username,))
-                
-                if result and result['count'] == 0:
-                    # Crear el usuario actual
-                    current_password_hash = hashlib.sha256("poncho".encode()).hexdigest()
-                    insert_current = """
-                    INSERT INTO usuarios (nombre, usuario, password, email, rol, activo) 
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    """
-                    db.execute_one(insert_current, (
-                        auth.current_user.get('nombre', 'Usuario Poncho'), 
-                        current_username, 
-                        current_password_hash, 
-                        'poncho@restaurant.com', 
-                        'admin', 
-                        True
-                    ))
-                    print(f"DEBUG: Usuario actual '{current_username}' agregado a la tabla")
-            
-            # Recargar usuarios
-            self.load_users()
-            
         except Exception as e:
-            print(f"DEBUG: Error creando usuarios por defecto: {e}")
-            messagebox.showerror("Error", f"Error creando usuarios por defecto: {str(e)}")
+            print(f"DEBUG: Error en create_default_users: {e}")
+            messagebox.showerror("Error", f"Error adaptando usuarios: {str(e)}")
     
     def nuevo_usuario(self):
-        """Crear nuevo usuario"""
-        dialog = tk.Toplevel(self.root)
-        dialog.title("Nuevo Usuario")
-        dialog.geometry("500x600")
-        dialog.resizable(False, False)
-        dialog.transient(self.root)
-        dialog.grab_set()
-        dialog.configure(bg='#f8f9fa')
-        
-        # Frame principal
-        main_frame = tk.Frame(dialog, bg='#f8f9fa')
-        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
-        
-        tk.Label(main_frame, text="👥 NUEVO USUARIO", font=('Arial', 14, 'bold'), 
-                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
-        
-        # Campos
-        fields_frame = tk.Frame(main_frame, bg='#f8f9fa')
-        fields_frame.pack(fill='x', pady=(0,20))
-        
-        # Nombre completo
-        tk.Label(fields_frame, text="Nombre Completo:", font=('Arial', 11), 
-                bg='#f8f9fa').grid(row=0, column=0, sticky='w', pady=8)
-        nombre_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
-        nombre_entry.grid(row=0, column=1, pady=8, padx=10, sticky='ew')
-        
-        # Usuario (login)
-        tk.Label(fields_frame, text="Usuario (login):", font=('Arial', 11), 
-                bg='#f8f9fa').grid(row=1, column=0, sticky='w', pady=8)
-        usuario_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
-        usuario_entry.grid(row=1, column=1, pady=8, padx=10, sticky='ew')
-        
-        # Email
-        tk.Label(fields_frame, text="Email:", font=('Arial', 11), 
-                bg='#f8f9fa').grid(row=2, column=0, sticky='w', pady=8)
-        email_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
-        email_entry.grid(row=2, column=1, pady=8, padx=10, sticky='ew')
-        
-        # Rol
-        tk.Label(fields_frame, text="Rol:", font=('Arial', 11), 
-                bg='#f8f9fa').grid(row=3, column=0, sticky='w', pady=8)
-        rol_combo = ttk.Combobox(fields_frame, width=28, state='readonly')
-        rol_combo['values'] = ('cajero', 'supervisor', 'gerente', 'admin')
-        rol_combo.set('cajero')
-        rol_combo.grid(row=3, column=1, pady=8, padx=10, sticky='ew')
-        
-        # Contraseña
-        tk.Label(fields_frame, text="Contraseña:", font=('Arial', 11), 
-                bg='#f8f9fa').grid(row=4, column=0, sticky='w', pady=8)
-        password_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1, show='*')
-        password_entry.grid(row=4, column=1, pady=8, padx=10, sticky='ew')
-        
-        # Confirmar contraseña
-        tk.Label(fields_frame, text="Confirmar Contraseña:", font=('Arial', 11), 
-                bg='#f8f9fa').grid(row=5, column=0, sticky='w', pady=8)
-        confirm_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1, show='*')
-        confirm_entry.grid(row=5, column=1, pady=8, padx=10, sticky='ew')
-        
-        # Estado activo
-        activo_var = tk.BooleanVar(value=True)
-        tk.Checkbutton(fields_frame, text="Usuario activo", variable=activo_var, 
-                      font=('Arial', 11), bg='#f8f9fa').grid(row=6, column=1, sticky='w', pady=8)
-        
-        fields_frame.grid_columnconfigure(1, weight=1)
-        
-        # Información de seguridad
-        security_frame = tk.LabelFrame(main_frame, text="Política de Contraseñas", font=('Arial', 11), 
-                                     bg='#f8f9fa', fg='#2c3e50')
-        security_frame.pack(fill='x', pady=(0,20))
-        
-        security_info = [
-            "• Mínimo 6 caracteres",
-            "• Se recomienda usar números y letras",
-            "• Evitar contraseñas obvias como '123456'",
-            "• El usuario deberá cambiarla en el primer acceso"
-        ]
-        
-        for info in security_info:
-            tk.Label(security_frame, text=info, font=('Arial', 9), 
-                    bg='#f8f9fa', fg='#7f8c8d').pack(anchor='w', padx=10, pady=2)
-        
-        def guardar_usuario():
-            nombre = nombre_entry.get().strip()
-            usuario = usuario_entry.get().strip()
-            email = email_entry.get().strip()
-            rol = rol_combo.get()
-            password = password_entry.get()
-            confirm = confirm_entry.get()
-            activo = activo_var.get()
-            
-            # Validaciones
-            if not nombre:
-                messagebox.showerror("Error", "El nombre completo es obligatorio")
-                nombre_entry.focus()
-                return
-            
-            if not usuario:
-                messagebox.showerror("Error", "El usuario es obligatorio")
-                usuario_entry.focus()
-                return
-            
-            if len(usuario) < 3:
-                messagebox.showerror("Error", "El usuario debe tener al menos 3 caracteres")
-                usuario_entry.focus()
-                return
-            
-            if not password:
-                messagebox.showerror("Error", "La contraseña es obligatoria")
-                password_entry.focus()
-                return
-            
-            if len(password) < 6:
-                messagebox.showerror("Error", "La contraseña debe tener al menos 6 caracteres")
-                password_entry.focus()
-                return
-            
-            if password != confirm:
-                messagebox.showerror("Error", "Las contraseñas no coinciden")
-                confirm_entry.focus()
-                return
-            
-            # Validar email si se proporciona
-            if email and '@' not in email:
-                messagebox.showerror("Error", "Email inválido")
-                email_entry.focus()
-                return
-            
-            try:
-                # Verificar si el usuario ya existe
-                check_query = "SELECT COUNT(*) as count FROM usuarios WHERE usuario = %s"
-                result = db.execute_one(check_query, (usuario,))
-                if result and result['count'] > 0:
-                    messagebox.showerror("Error", f"El usuario '{usuario}' ya existe")
-                    usuario_entry.focus()
-                    return
-                
-                # Hashear contraseña (simple hash - en producción usar bcrypt)
-                import hashlib
-                password_hash = hashlib.sha256(password.encode()).hexdigest()
-                
-                # Insertar usuario
-                query = """
-                INSERT INTO usuarios (nombre, usuario, password, email, rol, activo) 
-                VALUES (%s, %s, %s, %s, %s, %s)
-                """
-                result = db.execute_one(query, (nombre, usuario, password_hash, email or None, rol, activo))
-                
-                if result:
-                    messagebox.showinfo("Éxito", f"Usuario '{nombre}' creado correctamente")
-                    dialog.destroy()
-                    self.load_users()
-                else:
-                    messagebox.showerror("Error", "No se pudo crear el usuario")
-                    
-            except Exception as e:
-                messagebox.showerror("Error", f"Error guardando usuario: {str(e)}")
-        
-        # Botones
-        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
-        button_frame.pack(fill='x')
-        
-        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
-                 bg='#95a5a6', fg='white', width=12, height=1,
-                 command=dialog.destroy).pack(side='left', padx=5)
-        
-        tk.Button(button_frame, text="GUARDAR", font=('Arial', 11, 'bold'),
-                 bg='#3498db', fg='white', width=12, height=1,
-                 command=guardar_usuario).pack(side='right', padx=5)
-        
-        nombre_entry.focus()
+        """Crear nuevo usuario - Función deshabilitada"""
+        messagebox.showinfo("Función No Disponible", 
+            "La función de crear usuarios no está disponible.\n\n"
+            "La tabla de usuarios actual no tiene la estructura necesaria\n"
+            "para gestionar usuarios desde esta interfaz.\n\n"
+            "Contacte al administrador del sistema para agregar usuarios.")
     
     def editar_usuario(self):
-        """Editar usuario seleccionado"""
-        selection = self.users_tree.selection()
-        if not selection:
-            messagebox.showwarning("Advertencia", "Seleccione un usuario para editar")
-            return
-        
-        user_id = self.users_tree.item(selection[0])['values'][0]
-        
-        # No permitir editar el usuario actual
-        if user_id == auth.current_user['id']:
-            messagebox.showwarning("Advertencia", "No puede editar su propio usuario desde aquí")
-            return
-        
-        # Obtener datos del usuario
-        query = "SELECT * FROM usuarios WHERE id = %s"
-        usuario = db.execute_one(query, (user_id,))
-        
-        if not usuario:
-            messagebox.showerror("Error", "Usuario no encontrado")
-            return
-        
-        # Dialog de edición
-        dialog = tk.Toplevel(self.root)
-        dialog.title("Editar Usuario")
-        dialog.geometry("500x500")
-        dialog.resizable(False, False)
-        dialog.transient(self.root)
-        dialog.grab_set()
-        dialog.configure(bg='#f8f9fa')
-        
-        # Frame principal
-        main_frame = tk.Frame(dialog, bg='#f8f9fa')
-        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
-        
-        tk.Label(main_frame, text="✏️ EDITAR USUARIO", font=('Arial', 14, 'bold'), 
-                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
-        
-        # Información del usuario
-        info_frame = tk.LabelFrame(main_frame, text="Información Actual", font=('Arial', 11), 
-                                 bg='#f8f9fa', fg='#2c3e50')
-        info_frame.pack(fill='x', pady=(0,15))
-        
-        tk.Label(info_frame, text=f"Usuario: {usuario['usuario']}", font=('Arial', 10), 
-                bg='#f8f9fa').pack(anchor='w', padx=10, pady=2)
-        tk.Label(info_frame, text=f"Creado: {usuario['fecha_creacion'].strftime('%d/%m/%Y')}", 
-                font=('Arial', 10), bg='#f8f9fa').pack(anchor='w', padx=10, pady=2)
-        
-        # Campos editables
-        fields_frame = tk.Frame(main_frame, bg='#f8f9fa')
-        fields_frame.pack(fill='x', pady=(0,20))
-        
-        # Nombre completo
-        tk.Label(fields_frame, text="Nombre Completo:", font=('Arial', 11), 
-                bg='#f8f9fa').grid(row=0, column=0, sticky='w', pady=8)
-        nombre_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
-        nombre_entry.insert(0, usuario['nombre'])
-        nombre_entry.grid(row=0, column=1, pady=8, padx=10, sticky='ew')
-        
-        # Email
-        tk.Label(fields_frame, text="Email:", font=('Arial', 11), 
-                bg='#f8f9fa').grid(row=1, column=0, sticky='w', pady=8)
-        email_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
-        email_entry.insert(0, usuario['email'] or '')
-        email_entry.grid(row=1, column=1, pady=8, padx=10, sticky='ew')
-        
-        # Rol
-        tk.Label(fields_frame, text="Rol:", font=('Arial', 11), 
-                bg='#f8f9fa').grid(row=2, column=0, sticky='w', pady=8)
-        rol_combo = ttk.Combobox(fields_frame, width=28, state='readonly')
-        rol_combo['values'] = ('cajero', 'supervisor', 'gerente', 'admin')
-        rol_combo.set(usuario['rol'])
-        rol_combo.grid(row=2, column=1, pady=8, padx=10, sticky='ew')
-        
-        # Estado activo
-        activo_var = tk.BooleanVar(value=bool(usuario['activo']))
-        tk.Checkbutton(fields_frame, text="Usuario activo", variable=activo_var, 
-                      font=('Arial', 11), bg='#f8f9fa').grid(row=3, column=1, sticky='w', pady=8)
-        
-        fields_frame.grid_columnconfigure(1, weight=1)
-        
-        def actualizar_usuario():
-            nombre = nombre_entry.get().strip()
-            email = email_entry.get().strip()
-            rol = rol_combo.get()
-            activo = activo_var.get()
-            
-            # Validaciones
-            if not nombre:
-                messagebox.showerror("Error", "El nombre completo es obligatorio")
-                nombre_entry.focus()
-                return
-            
-            if email and '@' not in email:
-                messagebox.showerror("Error", "Email inválido")
-                email_entry.focus()
-                return
-            
-            try:
-                query = "UPDATE usuarios SET nombre = %s, email = %s, rol = %s, activo = %s WHERE id = %s"
-                result = db.execute_query(query, (nombre, email or None, rol, activo, user_id))
-                
-                if result:
-                    messagebox.showinfo("Éxito", f"Usuario '{nombre}' actualizado correctamente")
-                    dialog.destroy()
-                    self.load_users()
-                else:
-                    messagebox.showerror("Error", "No se pudo actualizar el usuario")
-                    
-            except Exception as e:
-                messagebox.showerror("Error", f"Error actualizando usuario: {str(e)}")
-        
-        # Botones
-        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
-        button_frame.pack(fill='x')
-        
-        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
-                 bg='#95a5a6', fg='white', width=12, height=1,
-                 command=dialog.destroy).pack(side='left', padx=5)
-        
-        tk.Button(button_frame, text="ACTUALIZAR", font=('Arial', 11, 'bold'),
-                 bg='#3498db', fg='white', width=12, height=1,
-                 command=actualizar_usuario).pack(side='right', padx=5)
-        
-        nombre_entry.focus()
+        """Editar usuario - Función deshabilitada"""
+        messagebox.showinfo("Función No Disponible", 
+            "La función de editar usuarios no está disponible.\n\n"
+            "La tabla de usuarios actual no tiene la estructura necesaria\n"
+            "para gestionar usuarios desde esta interfaz.\n\n"
+            "Contacte al administrador del sistema para modificar usuarios.")
     
     def cambiar_password(self):
-        """Cambiar contraseña de usuario"""
-        selection = self.users_tree.selection()
-        if not selection:
-            messagebox.showwarning("Advertencia", "Seleccione un usuario para cambiar contraseña")
-            return
-        
-        user_id = self.users_tree.item(selection[0])['values'][0]
-        user_name = self.users_tree.item(selection[0])['values'][1]
-        
-        # Dialog para cambio de contraseña
-        dialog = tk.Toplevel(self.root)
-        dialog.title("Cambiar Contraseña")
-        dialog.geometry("400x350")
-        dialog.resizable(False, False)
-        dialog.transient(self.root)
-        dialog.grab_set()
-        dialog.configure(bg='#f8f9fa')
-        
-        # Frame principal
-        main_frame = tk.Frame(dialog, bg='#f8f9fa')
-        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
-        
-        tk.Label(main_frame, text="🔒 CAMBIAR CONTRASEÑA", font=('Arial', 14, 'bold'), 
-                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
-        
-        tk.Label(main_frame, text=f"Usuario: {user_name}", font=('Arial', 12), 
-                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
-        
-        # Campos
-        fields_frame = tk.Frame(main_frame, bg='#f8f9fa')
-        fields_frame.pack(fill='x', pady=(0,20))
-        
-        # Nueva contraseña
-        tk.Label(fields_frame, text="Nueva Contraseña:", font=('Arial', 11), 
-                bg='#f8f9fa').grid(row=0, column=0, sticky='w', pady=8)
-        password_entry = tk.Entry(fields_frame, font=('Arial', 11), width=25, relief='solid', bd=1, show='*')
-        password_entry.grid(row=0, column=1, pady=8, padx=10, sticky='ew')
-        
-        # Confirmar contraseña
-        tk.Label(fields_frame, text="Confirmar Contraseña:", font=('Arial', 11), 
-                bg='#f8f9fa').grid(row=1, column=0, sticky='w', pady=8)
-        confirm_entry = tk.Entry(fields_frame, font=('Arial', 11), width=25, relief='solid', bd=1, show='*')
-        confirm_entry.grid(row=1, column=1, pady=8, padx=10, sticky='ew')
-        
-        fields_frame.grid_columnconfigure(1, weight=1)
-        
-        # Política de contraseñas
-        policy_frame = tk.LabelFrame(main_frame, text="Política de Contraseñas", font=('Arial', 10), 
-                                   bg='#f8f9fa', fg='#2c3e50')
-        policy_frame.pack(fill='x', pady=(0,15))
-        
-        tk.Label(policy_frame, text="• Mínimo 6 caracteres", font=('Arial', 9), 
-                bg='#f8f9fa').pack(anchor='w', padx=10, pady=2)
-        tk.Label(policy_frame, text="• Se recomienda usar números y letras", font=('Arial', 9), 
-                bg='#f8f9fa').pack(anchor='w', padx=10, pady=2)
-        
-        def cambiar():
-            password = password_entry.get()
-            confirm = confirm_entry.get()
-            
-            if not password:
-                messagebox.showerror("Error", "La contraseña es obligatoria")
-                password_entry.focus()
-                return
-            
-            if len(password) < 6:
-                messagebox.showerror("Error", "La contraseña debe tener al menos 6 caracteres")
-                password_entry.focus()
-                return
-            
-            if password != confirm:
-                messagebox.showerror("Error", "Las contraseñas no coinciden")
-                confirm_entry.focus()
-                return
-            
-            try:
-                import hashlib
-                password_hash = hashlib.sha256(password.encode()).hexdigest()
-                
-                query = "UPDATE usuarios SET password = %s WHERE id = %s"
-                result = db.execute_query(query, (password_hash, user_id))
-                
-                if result:
-                    messagebox.showinfo("Éxito", f"Contraseña cambiada para {user_name}")
-                    dialog.destroy()
-                else:
-                    messagebox.showerror("Error", "No se pudo cambiar la contraseña")
-                    
-            except Exception as e:
-                messagebox.showerror("Error", f"Error cambiando contraseña: {str(e)}")
-        
-        # Botones
-        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
-        button_frame.pack(fill='x')
-        
-        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
-                 bg='#95a5a6', fg='white', width=12, height=1,
-                 command=dialog.destroy).pack(side='left', padx=5)
-        
-        tk.Button(button_frame, text="CAMBIAR", font=('Arial', 11, 'bold'),
-                 bg='#f39c12', fg='white', width=12, height=1,
-                 command=cambiar).pack(side='right', padx=5)
-        
-        password_entry.focus()
+        """Cambiar contraseña - Función deshabilitada"""
+        messagebox.showinfo("Función No Disponible", 
+            "La función de cambio de contraseñas no está disponible.\n\n"
+            "La tabla de usuarios actual no tiene la estructura necesaria\n"
+            "para gestionar contraseñas desde esta interfaz.\n\n"
+            "Contacte al administrador del sistema.")
     
     def toggle_usuario_estado(self):
-        """Activar/Desactivar usuario"""
-        selection = self.users_tree.selection()
-        if not selection:
-            messagebox.showwarning("Advertencia", "Seleccione un usuario para cambiar estado")
-            return
-        
-        user_id = self.users_tree.item(selection[0])['values'][0]
-        user_name = self.users_tree.item(selection[0])['values'][1]
-        current_status = self.users_tree.item(selection[0])['values'][5]
-        
-        # No permitir desactivar el usuario actual
-        if user_id == auth.current_user['id']:
-            messagebox.showwarning("Advertencia", "No puede desactivar su propio usuario")
-            return
-        
-        # Determinar nueva acción
-        is_active = "Activo" in current_status
-        action = "desactivar" if is_active else "activar"
-        new_status = not is_active
-        
-        # Confirmar acción
-        respuesta = messagebox.askyesno("Confirmar Acción", 
-            f"¿Está seguro de {action} el usuario '{user_name}'?\n\n"
-            f"Usuario {'no podrá' if not new_status else 'podrá'} acceder al sistema.")
-        
-        if respuesta:
-            try:
-                query = "UPDATE usuarios SET activo = %s WHERE id = %s"
-                result = db.execute_query(query, (new_status, user_id))
-                
-                if result:
-                    status_text = "activado" if new_status else "desactivado"
-                    messagebox.showinfo("Éxito", f"Usuario '{user_name}' {status_text} correctamente")
-                    self.load_users()
-                else:
-                    messagebox.showerror("Error", f"No se pudo {action} el usuario")
-                    
-            except Exception as e:
-                messagebox.showerror("Error", f"Error cambiando estado: {str(e)}")
+        """Activar/Desactivar usuario - Función deshabilitada"""
+        messagebox.showinfo("Función No Disponible", 
+            "La función de activar/desactivar usuarios no está disponible.\n\n"
+            "La tabla de usuarios actual no tiene la estructura necesaria\n"
+            "para gestionar el estado de usuarios desde esta interfaz.\n\n"
+            "Contacte al administrador del sistema.")
     
     def exportar_usuarios(self):
         """Exportar usuarios a Excel"""
