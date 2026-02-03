@@ -2551,7 +2551,1070 @@ DIFERENCIA: ${diferencia:.2f}"""
         nombre_entry.focus()
 
     def admin_usuarios(self):
-        messagebox.showinfo("Información", "Funcionalidad en desarrollo")
+        self.show_user_administration()
+    
+    def show_user_administration(self):
+        self.clear_window()
+        
+        # Header
+        header_frame = tk.Frame(self.root, bg='#34495e', height=60)
+        header_frame.pack(fill='x')
+        header_frame.pack_propagate(False)
+        
+        user_info = f"Admin - Gestión de Usuarios: {auth.current_user['nombre']}"
+        tk.Label(header_frame, text=user_info, font=('Arial', 12, 'bold'), 
+                bg='#34495e', fg='white').pack(side='left', padx=20, pady=20)
+        
+        # Botón volver
+        tk.Button(header_frame, text="← Volver", font=('Arial', 10), 
+                 command=self.show_admin_menu).pack(side='right', padx=20, pady=15)
+        
+        # Frame principal
+        main_frame = tk.Frame(self.root, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        # Título
+        tk.Label(main_frame, text="👥 ADMINISTRACIÓN DE USUARIOS", font=('Arial', 18, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
+        
+        # Frame para pestañas/secciones
+        notebook_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        notebook_frame.pack(fill='both', expand=True)
+        
+        # Botones de sección
+        section_frame = tk.Frame(notebook_frame, bg='#f8f9fa')
+        section_frame.pack(fill='x', pady=(0,10))
+        
+        self.current_user_section = tk.StringVar(value='usuarios')
+        
+        tk.Radiobutton(section_frame, text="👥 USUARIOS", variable=self.current_user_section, 
+                      value='usuarios', font=('Arial', 12, 'bold'), bg='#f8f9fa',
+                      command=self.refresh_user_content).pack(side='left', padx=20)
+        tk.Radiobutton(section_frame, text="🔒 ROLES Y PERMISOS", variable=self.current_user_section, 
+                      value='roles', font=('Arial', 12, 'bold'), bg='#f8f9fa',
+                      command=self.refresh_user_content).pack(side='left', padx=20)
+        tk.Radiobutton(section_frame, text="📊 REPORTES", variable=self.current_user_section, 
+                      value='reportes', font=('Arial', 12, 'bold'), bg='#f8f9fa',
+                      command=self.refresh_user_content).pack(side='left', padx=20)
+        
+        # Contenedor para el contenido dinámico
+        self.user_content_frame = tk.Frame(notebook_frame, bg='#f8f9fa')
+        self.user_content_frame.pack(fill='both', expand=True)
+        
+        # Cargar contenido inicial
+        self.refresh_user_content()
+    
+    def refresh_user_content(self):
+        # Limpiar contenido anterior
+        for widget in self.user_content_frame.winfo_children():
+            widget.destroy()
+        
+        section = self.current_user_section.get()
+        
+        if section == 'usuarios':
+            self.show_users_management()
+        elif section == 'roles':
+            self.show_roles_management()
+        elif section == 'reportes':
+            self.show_user_reports()
+    
+    def show_users_management(self):
+        # Frame principal para usuarios
+        frame = tk.Frame(self.user_content_frame, bg='#f8f9fa')
+        frame.pack(fill='both', expand=True)
+        
+        # Filtros y búsqueda
+        filter_frame = tk.Frame(frame, bg='#f8f9fa')
+        filter_frame.pack(fill='x', pady=(0,10))
+        
+        tk.Label(filter_frame, text="🔍 Buscar:", font=('Arial', 11), 
+                bg='#f8f9fa').pack(side='left', padx=5)
+        
+        self.user_search_var = tk.StringVar()
+        search_entry = tk.Entry(filter_frame, textvariable=self.user_search_var, font=('Arial', 11), width=25)
+        search_entry.pack(side='left', padx=5)
+        search_entry.bind('<KeyRelease>', lambda e: self.load_users())
+        
+        tk.Label(filter_frame, text="Rol:", font=('Arial', 11), 
+                bg='#f8f9fa').pack(side='left', padx=(20,5))
+        
+        self.role_filter = ttk.Combobox(filter_frame, width=15, state='readonly')
+        self.role_filter.pack(side='left', padx=5)
+        self.role_filter.bind('<<ComboboxSelected>>', lambda e: self.load_users())
+        
+        # Botones de acción
+        action_frame = tk.Frame(frame, bg='#f8f9fa')
+        action_frame.pack(fill='x', pady=(0,15))
+        
+        tk.Button(action_frame, text="➕ NUEVO USUARIO", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=18, height=1,
+                 command=self.nuevo_usuario).pack(side='left', padx=5)
+        
+        tk.Button(action_frame, text="✏️ EDITAR", font=('Arial', 11, 'bold'),
+                 bg='#2980b9', fg='white', width=12, height=1,
+                 command=self.editar_usuario).pack(side='left', padx=5)
+        
+        tk.Button(action_frame, text="🔒 CAMBIAR CONTRASEÑA", font=('Arial', 11, 'bold'),
+                 bg='#f39c12', fg='white', width=18, height=1,
+                 command=self.cambiar_password).pack(side='left', padx=5)
+        
+        tk.Button(action_frame, text="❌ DESACTIVAR", font=('Arial', 11, 'bold'),
+                 bg='#e74c3c', fg='white', width=12, height=1,
+                 command=self.toggle_usuario_estado).pack(side='left', padx=5)
+        
+        tk.Button(action_frame, text="📄 EXPORTAR", font=('Arial', 11, 'bold'),
+                 bg='#27ae60', fg='white', width=12, height=1,
+                 command=self.exportar_usuarios).pack(side='right', padx=5)
+        
+        # Lista de usuarios
+        list_frame = tk.Frame(frame, bg='#f8f9fa')
+        list_frame.pack(fill='both', expand=True)
+        
+        # Treeview para usuarios
+        columns = ('id', 'nombre', 'usuario', 'rol', 'email', 'activo', 'ultimo_acceso')
+        self.users_tree = ttk.Treeview(list_frame, columns=columns, show='headings', height=15)
+        
+        self.users_tree.heading('id', text='ID')
+        self.users_tree.heading('nombre', text='Nombre Completo')
+        self.users_tree.heading('usuario', text='Usuario')
+        self.users_tree.heading('rol', text='Rol')
+        self.users_tree.heading('email', text='Email')
+        self.users_tree.heading('activo', text='Estado')
+        self.users_tree.heading('ultimo_acceso', text='Último Acceso')
+        
+        self.users_tree.column('id', width=50)
+        self.users_tree.column('nombre', width=180)
+        self.users_tree.column('usuario', width=120)
+        self.users_tree.column('rol', width=100)
+        self.users_tree.column('email', width=180)
+        self.users_tree.column('activo', width=80)
+        self.users_tree.column('ultimo_acceso', width=120)
+        
+        scrollbar_users = ttk.Scrollbar(list_frame, orient='vertical', command=self.users_tree.yview)
+        self.users_tree.configure(yscrollcommand=scrollbar_users.set)
+        
+        self.users_tree.pack(side='left', fill='both', expand=True)
+        scrollbar_users.pack(side='right', fill='y')
+        
+        # Cargar datos
+        self.load_role_filter()
+        self.load_users()
+    
+    def show_roles_management(self):
+        frame = tk.Frame(self.user_content_frame, bg='#f8f9fa')
+        frame.pack(fill='both', expand=True)
+        
+        # Información de roles del sistema
+        info_frame = tk.LabelFrame(frame, text="Roles del Sistema", font=('Arial', 12, 'bold'), 
+                                 bg='#f8f9fa', fg='#2c3e50')
+        info_frame.pack(fill='x', pady=(0,20), padx=10)
+        
+        roles_info = [
+            ("👑 ADMIN", "Acceso completo al sistema", "#e74c3c"),
+            ("👨‍💼 GERENTE", "Gestión de usuarios, reportes, menú", "#f39c12"),
+            ("👨‍🍳 CAJERO", "Operación de POS, turnos, órdenes", "#3498db"),
+            ("📊 SUPERVISOR", "Supervisión, reportes, cortes", "#9b59b6")
+        ]
+        
+        for i, (rol, descripcion, color) in enumerate(roles_info):
+            role_frame = tk.Frame(info_frame, bg='#f8f9fa')
+            role_frame.pack(fill='x', padx=10, pady=5)
+            
+            tk.Label(role_frame, text=rol, font=('Arial', 11, 'bold'), 
+                    bg='#f8f9fa', fg=color, width=15, anchor='w').pack(side='left')
+            tk.Label(role_frame, text=descripcion, font=('Arial', 11), 
+                    bg='#f8f9fa', fg='#2c3e50').pack(side='left', padx=(10,0))
+        
+        # Matriz de permisos
+        permisos_frame = tk.LabelFrame(frame, text="Matriz de Permisos", font=('Arial', 12, 'bold'), 
+                                     bg='#f8f9fa', fg='#2c3e50')
+        permisos_frame.pack(fill='both', expand=True, padx=10, pady=10)
+        
+        # Crear matriz de permisos
+        self.create_permissions_matrix(permisos_frame)
+    
+    def create_permissions_matrix(self, parent):
+        # Canvas para scroll
+        canvas = tk.Canvas(parent, bg='#f8f9fa')
+        scrollbar_matrix = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg='#f8f9fa')
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar_matrix.set)
+        
+        # Encabezados
+        tk.Label(scrollable_frame, text="FUNCIONALIDAD", font=('Arial', 11, 'bold'), 
+                bg='#34495e', fg='white', width=25).grid(row=0, column=0, sticky='ew', padx=1, pady=1)
+        
+        roles = ["ADMIN", "GERENTE", "CAJERO", "SUPERVISOR"]
+        for i, rol in enumerate(roles):
+            tk.Label(scrollable_frame, text=rol, font=('Arial', 10, 'bold'), 
+                    bg='#34495e', fg='white', width=12).grid(row=0, column=i+1, sticky='ew', padx=1, pady=1)
+        
+        # Definir permisos por funcionalidad
+        permisos = [
+            ("POS - Crear Órdenes", ["❌", "✅", "✅", "✅"]),
+            ("POS - Procesar Pagos", ["❌", "✅", "✅", "✅"]),
+            ("POS - Cancelar Órdenes", ["✅", "✅", "❌", "✅"]),
+            ("Turnos - Abrir/Cerrar", ["✅", "✅", "✅", "❌"]),
+            ("Arqueos de Caja", ["✅", "✅", "✅", "✅"]),
+            ("Cortes de Caja", ["✅", "✅", "✅", "✅"]),
+            ("Historial de Órdenes", ["✅", "✅", "✅", "✅"]),
+            ("Administrar Menú", ["✅", "✅", "❌", "❌"]),
+            ("Administrar Usuarios", ["✅", "✅", "❌", "❌"]),
+            ("Reportes de Ventas", ["✅", "✅", "❌", "✅"]),
+            ("Reportes de Usuarios", ["✅", "✅", "❌", "❌"]),
+            ("Configuración Sistema", ["✅", "❌", "❌", "❌"])
+        ]
+        
+        for row, (funcionalidad, perms) in enumerate(permisos, 1):
+            # Funcionalidad
+            tk.Label(scrollable_frame, text=funcionalidad, font=('Arial', 10), 
+                    bg='#ecf0f1', fg='#2c3e50', width=25, anchor='w').grid(row=row, column=0, sticky='ew', padx=1, pady=1)
+            
+            # Permisos por rol
+            for col, permiso in enumerate(perms):
+                color = '#27ae60' if permiso == '✅' else '#e74c3c'
+                tk.Label(scrollable_frame, text=permiso, font=('Arial', 12, 'bold'), 
+                        bg='#ffffff', fg=color, width=12).grid(row=row, column=col+1, sticky='ew', padx=1, pady=1)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar_matrix.pack(side="right", fill="y")
+    
+    def show_user_reports(self):
+        frame = tk.Frame(self.user_content_frame, bg='#f8f9fa')
+        frame.pack(fill='both', expand=True)
+        
+        # Título de reportes
+        tk.Label(frame, text="📊 REPORTES DE USUARIOS", font=('Arial', 16, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
+        
+        # Grid de botones de reportes
+        reports_grid = tk.Frame(frame, bg='#f8f9fa')
+        reports_grid.pack(expand=True)
+        
+        # Fila 1
+        row1 = tk.Frame(reports_grid, bg='#f8f9fa')
+        row1.pack(pady=10)
+        
+        tk.Button(row1, text="👥 LISTADO COMPLETO", font=('Arial', 12, 'bold'),
+                 bg='#3498db', fg='white', width=25, height=3,
+                 command=self.reporte_usuarios_completo).pack(side='left', padx=10)
+        
+        tk.Button(row1, text="🔐 ACTIVIDAD DE ACCESOS", font=('Arial', 12, 'bold'),
+                 bg='#2980b9', fg='white', width=25, height=3,
+                 command=self.reporte_actividad_accesos).pack(side='left', padx=10)
+        
+        # Fila 2
+        row2 = tk.Frame(reports_grid, bg='#f8f9fa')
+        row2.pack(pady=10)
+        
+        tk.Button(row2, text="📈 USUARIOS POR ROL", font=('Arial', 12, 'bold'),
+                 bg='#5dade2', fg='white', width=25, height=3,
+                 command=self.reporte_usuarios_por_rol).pack(side='left', padx=10)
+        
+        tk.Button(row2, text="⚠️ USUARIOS INACTIVOS", font=('Arial', 12, 'bold'),
+                 bg='#e74c3c', fg='white', width=25, height=3,
+                 command=self.reporte_usuarios_inactivos).pack(side='left', padx=10)
+
+    # ================== FUNCIONES DE GESTIÓN DE USUARIOS ==================
+    
+    def load_role_filter(self):
+        """Cargar opciones de filtro de roles"""
+        try:
+            roles = ['Todos los roles', 'admin', 'gerente', 'cajero', 'supervisor']
+            self.role_filter['values'] = roles
+            self.role_filter.set('Todos los roles')
+        except Exception as e:
+            print(f"Error cargando filtro de roles: {e}")
+    
+    def load_users(self):
+        """Cargar usuarios en el treeview"""
+        try:
+            # Limpiar tree
+            for item in self.users_tree.get_children():
+                self.users_tree.delete(item)
+            
+            # Obtener filtros
+            search_text = self.user_search_var.get().lower()
+            role_filter = self.role_filter.get()
+            
+            # Query base
+            query = """
+            SELECT u.id, u.nombre, u.usuario, u.rol, u.email, u.activo, 
+                   u.ultimo_acceso, u.fecha_creacion
+            FROM usuarios u
+            WHERE 1=1
+            """
+            params = []
+            
+            # Aplicar filtro de búsqueda
+            if search_text:
+                query += " AND (LOWER(u.nombre) LIKE %s OR LOWER(u.usuario) LIKE %s OR LOWER(u.email) LIKE %s)"
+                search_param = f"%{search_text}%"
+                params.extend([search_param, search_param, search_param])
+            
+            # Aplicar filtro de rol
+            if role_filter != 'Todos los roles':
+                query += " AND u.rol = %s"
+                params.append(role_filter)
+            
+            query += " ORDER BY u.activo DESC, u.nombre"
+            
+            usuarios = db.execute_query(query, params)
+            
+            for usuario in usuarios:
+                estado = "✅ Activo" if usuario['activo'] else "❌ Inactivo"
+                ultimo_acceso = ""
+                if usuario['ultimo_acceso']:
+                    ultimo_acceso = usuario['ultimo_acceso'].strftime('%d/%m/%Y %H:%M')
+                
+                # Determinar color de rol
+                rol_display = usuario['rol'].upper()
+                
+                self.users_tree.insert('', 'end', values=(
+                    usuario['id'],
+                    usuario['nombre'],
+                    usuario['usuario'],
+                    rol_display,
+                    usuario['email'] or '',
+                    estado,
+                    ultimo_acceso
+                ))
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Error cargando usuarios: {str(e)}")
+            print(f"DEBUG: Error en load_users: {e}")
+    
+    def nuevo_usuario(self):
+        """Crear nuevo usuario"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Nuevo Usuario")
+        dialog.geometry("500x600")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.configure(bg='#f8f9fa')
+        
+        # Frame principal
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        tk.Label(main_frame, text="👥 NUEVO USUARIO", font=('Arial', 14, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
+        
+        # Campos
+        fields_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        fields_frame.pack(fill='x', pady=(0,20))
+        
+        # Nombre completo
+        tk.Label(fields_frame, text="Nombre Completo:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=0, column=0, sticky='w', pady=8)
+        nombre_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
+        nombre_entry.grid(row=0, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Usuario (login)
+        tk.Label(fields_frame, text="Usuario (login):", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=1, column=0, sticky='w', pady=8)
+        usuario_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
+        usuario_entry.grid(row=1, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Email
+        tk.Label(fields_frame, text="Email:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=2, column=0, sticky='w', pady=8)
+        email_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
+        email_entry.grid(row=2, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Rol
+        tk.Label(fields_frame, text="Rol:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=3, column=0, sticky='w', pady=8)
+        rol_combo = ttk.Combobox(fields_frame, width=28, state='readonly')
+        rol_combo['values'] = ('cajero', 'supervisor', 'gerente', 'admin')
+        rol_combo.set('cajero')
+        rol_combo.grid(row=3, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Contraseña
+        tk.Label(fields_frame, text="Contraseña:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=4, column=0, sticky='w', pady=8)
+        password_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1, show='*')
+        password_entry.grid(row=4, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Confirmar contraseña
+        tk.Label(fields_frame, text="Confirmar Contraseña:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=5, column=0, sticky='w', pady=8)
+        confirm_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1, show='*')
+        confirm_entry.grid(row=5, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Estado activo
+        activo_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(fields_frame, text="Usuario activo", variable=activo_var, 
+                      font=('Arial', 11), bg='#f8f9fa').grid(row=6, column=1, sticky='w', pady=8)
+        
+        fields_frame.grid_columnconfigure(1, weight=1)
+        
+        # Información de seguridad
+        security_frame = tk.LabelFrame(main_frame, text="Política de Contraseñas", font=('Arial', 11), 
+                                     bg='#f8f9fa', fg='#2c3e50')
+        security_frame.pack(fill='x', pady=(0,20))
+        
+        security_info = [
+            "• Mínimo 6 caracteres",
+            "• Se recomienda usar números y letras",
+            "• Evitar contraseñas obvias como '123456'",
+            "• El usuario deberá cambiarla en el primer acceso"
+        ]
+        
+        for info in security_info:
+            tk.Label(security_frame, text=info, font=('Arial', 9), 
+                    bg='#f8f9fa', fg='#7f8c8d').pack(anchor='w', padx=10, pady=2)
+        
+        def guardar_usuario():
+            nombre = nombre_entry.get().strip()
+            usuario = usuario_entry.get().strip()
+            email = email_entry.get().strip()
+            rol = rol_combo.get()
+            password = password_entry.get()
+            confirm = confirm_entry.get()
+            activo = activo_var.get()
+            
+            # Validaciones
+            if not nombre:
+                messagebox.showerror("Error", "El nombre completo es obligatorio")
+                nombre_entry.focus()
+                return
+            
+            if not usuario:
+                messagebox.showerror("Error", "El usuario es obligatorio")
+                usuario_entry.focus()
+                return
+            
+            if len(usuario) < 3:
+                messagebox.showerror("Error", "El usuario debe tener al menos 3 caracteres")
+                usuario_entry.focus()
+                return
+            
+            if not password:
+                messagebox.showerror("Error", "La contraseña es obligatoria")
+                password_entry.focus()
+                return
+            
+            if len(password) < 6:
+                messagebox.showerror("Error", "La contraseña debe tener al menos 6 caracteres")
+                password_entry.focus()
+                return
+            
+            if password != confirm:
+                messagebox.showerror("Error", "Las contraseñas no coinciden")
+                confirm_entry.focus()
+                return
+            
+            # Validar email si se proporciona
+            if email and '@' not in email:
+                messagebox.showerror("Error", "Email inválido")
+                email_entry.focus()
+                return
+            
+            try:
+                # Verificar si el usuario ya existe
+                check_query = "SELECT COUNT(*) as count FROM usuarios WHERE usuario = %s"
+                result = db.execute_one(check_query, (usuario,))
+                if result and result['count'] > 0:
+                    messagebox.showerror("Error", f"El usuario '{usuario}' ya existe")
+                    usuario_entry.focus()
+                    return
+                
+                # Hashear contraseña (simple hash - en producción usar bcrypt)
+                import hashlib
+                password_hash = hashlib.sha256(password.encode()).hexdigest()
+                
+                # Insertar usuario
+                query = """
+                INSERT INTO usuarios (nombre, usuario, password, email, rol, activo) 
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """
+                result = db.execute_one(query, (nombre, usuario, password_hash, email or None, rol, activo))
+                
+                if result:
+                    messagebox.showinfo("Éxito", f"Usuario '{nombre}' creado correctamente")
+                    dialog.destroy()
+                    self.load_users()
+                else:
+                    messagebox.showerror("Error", "No se pudo crear el usuario")
+                    
+            except Exception as e:
+                messagebox.showerror("Error", f"Error guardando usuario: {str(e)}")
+        
+        # Botones
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack(fill='x')
+        
+        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                 bg='#95a5a6', fg='white', width=12, height=1,
+                 command=dialog.destroy).pack(side='left', padx=5)
+        
+        tk.Button(button_frame, text="GUARDAR", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=12, height=1,
+                 command=guardar_usuario).pack(side='right', padx=5)
+        
+        nombre_entry.focus()
+    
+    def editar_usuario(self):
+        """Editar usuario seleccionado"""
+        selection = self.users_tree.selection()
+        if not selection:
+            messagebox.showwarning("Advertencia", "Seleccione un usuario para editar")
+            return
+        
+        user_id = self.users_tree.item(selection[0])['values'][0]
+        
+        # No permitir editar el usuario actual
+        if user_id == auth.current_user['id']:
+            messagebox.showwarning("Advertencia", "No puede editar su propio usuario desde aquí")
+            return
+        
+        # Obtener datos del usuario
+        query = "SELECT * FROM usuarios WHERE id = %s"
+        usuario = db.execute_one(query, (user_id,))
+        
+        if not usuario:
+            messagebox.showerror("Error", "Usuario no encontrado")
+            return
+        
+        # Dialog de edición
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Editar Usuario")
+        dialog.geometry("500x500")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.configure(bg='#f8f9fa')
+        
+        # Frame principal
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        tk.Label(main_frame, text="✏️ EDITAR USUARIO", font=('Arial', 14, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
+        
+        # Información del usuario
+        info_frame = tk.LabelFrame(main_frame, text="Información Actual", font=('Arial', 11), 
+                                 bg='#f8f9fa', fg='#2c3e50')
+        info_frame.pack(fill='x', pady=(0,15))
+        
+        tk.Label(info_frame, text=f"Usuario: {usuario['usuario']}", font=('Arial', 10), 
+                bg='#f8f9fa').pack(anchor='w', padx=10, pady=2)
+        tk.Label(info_frame, text=f"Creado: {usuario['fecha_creacion'].strftime('%d/%m/%Y')}", 
+                font=('Arial', 10), bg='#f8f9fa').pack(anchor='w', padx=10, pady=2)
+        
+        # Campos editables
+        fields_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        fields_frame.pack(fill='x', pady=(0,20))
+        
+        # Nombre completo
+        tk.Label(fields_frame, text="Nombre Completo:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=0, column=0, sticky='w', pady=8)
+        nombre_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
+        nombre_entry.insert(0, usuario['nombre'])
+        nombre_entry.grid(row=0, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Email
+        tk.Label(fields_frame, text="Email:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=1, column=0, sticky='w', pady=8)
+        email_entry = tk.Entry(fields_frame, font=('Arial', 11), width=30, relief='solid', bd=1)
+        email_entry.insert(0, usuario['email'] or '')
+        email_entry.grid(row=1, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Rol
+        tk.Label(fields_frame, text="Rol:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=2, column=0, sticky='w', pady=8)
+        rol_combo = ttk.Combobox(fields_frame, width=28, state='readonly')
+        rol_combo['values'] = ('cajero', 'supervisor', 'gerente', 'admin')
+        rol_combo.set(usuario['rol'])
+        rol_combo.grid(row=2, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Estado activo
+        activo_var = tk.BooleanVar(value=bool(usuario['activo']))
+        tk.Checkbutton(fields_frame, text="Usuario activo", variable=activo_var, 
+                      font=('Arial', 11), bg='#f8f9fa').grid(row=3, column=1, sticky='w', pady=8)
+        
+        fields_frame.grid_columnconfigure(1, weight=1)
+        
+        def actualizar_usuario():
+            nombre = nombre_entry.get().strip()
+            email = email_entry.get().strip()
+            rol = rol_combo.get()
+            activo = activo_var.get()
+            
+            # Validaciones
+            if not nombre:
+                messagebox.showerror("Error", "El nombre completo es obligatorio")
+                nombre_entry.focus()
+                return
+            
+            if email and '@' not in email:
+                messagebox.showerror("Error", "Email inválido")
+                email_entry.focus()
+                return
+            
+            try:
+                query = "UPDATE usuarios SET nombre = %s, email = %s, rol = %s, activo = %s WHERE id = %s"
+                result = db.execute_query(query, (nombre, email or None, rol, activo, user_id))
+                
+                if result:
+                    messagebox.showinfo("Éxito", f"Usuario '{nombre}' actualizado correctamente")
+                    dialog.destroy()
+                    self.load_users()
+                else:
+                    messagebox.showerror("Error", "No se pudo actualizar el usuario")
+                    
+            except Exception as e:
+                messagebox.showerror("Error", f"Error actualizando usuario: {str(e)}")
+        
+        # Botones
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack(fill='x')
+        
+        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                 bg='#95a5a6', fg='white', width=12, height=1,
+                 command=dialog.destroy).pack(side='left', padx=5)
+        
+        tk.Button(button_frame, text="ACTUALIZAR", font=('Arial', 11, 'bold'),
+                 bg='#3498db', fg='white', width=12, height=1,
+                 command=actualizar_usuario).pack(side='right', padx=5)
+        
+        nombre_entry.focus()
+    
+    def cambiar_password(self):
+        """Cambiar contraseña de usuario"""
+        selection = self.users_tree.selection()
+        if not selection:
+            messagebox.showwarning("Advertencia", "Seleccione un usuario para cambiar contraseña")
+            return
+        
+        user_id = self.users_tree.item(selection[0])['values'][0]
+        user_name = self.users_tree.item(selection[0])['values'][1]
+        
+        # Dialog para cambio de contraseña
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Cambiar Contraseña")
+        dialog.geometry("400x350")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.configure(bg='#f8f9fa')
+        
+        # Frame principal
+        main_frame = tk.Frame(dialog, bg='#f8f9fa')
+        main_frame.pack(fill='both', expand=True, padx=20, pady=20)
+        
+        tk.Label(main_frame, text="🔒 CAMBIAR CONTRASEÑA", font=('Arial', 14, 'bold'), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
+        
+        tk.Label(main_frame, text=f"Usuario: {user_name}", font=('Arial', 12), 
+                bg='#f8f9fa', fg='#2c3e50').pack(pady=(0,20))
+        
+        # Campos
+        fields_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        fields_frame.pack(fill='x', pady=(0,20))
+        
+        # Nueva contraseña
+        tk.Label(fields_frame, text="Nueva Contraseña:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=0, column=0, sticky='w', pady=8)
+        password_entry = tk.Entry(fields_frame, font=('Arial', 11), width=25, relief='solid', bd=1, show='*')
+        password_entry.grid(row=0, column=1, pady=8, padx=10, sticky='ew')
+        
+        # Confirmar contraseña
+        tk.Label(fields_frame, text="Confirmar Contraseña:", font=('Arial', 11), 
+                bg='#f8f9fa').grid(row=1, column=0, sticky='w', pady=8)
+        confirm_entry = tk.Entry(fields_frame, font=('Arial', 11), width=25, relief='solid', bd=1, show='*')
+        confirm_entry.grid(row=1, column=1, pady=8, padx=10, sticky='ew')
+        
+        fields_frame.grid_columnconfigure(1, weight=1)
+        
+        # Política de contraseñas
+        policy_frame = tk.LabelFrame(main_frame, text="Política de Contraseñas", font=('Arial', 10), 
+                                   bg='#f8f9fa', fg='#2c3e50')
+        policy_frame.pack(fill='x', pady=(0,15))
+        
+        tk.Label(policy_frame, text="• Mínimo 6 caracteres", font=('Arial', 9), 
+                bg='#f8f9fa').pack(anchor='w', padx=10, pady=2)
+        tk.Label(policy_frame, text="• Se recomienda usar números y letras", font=('Arial', 9), 
+                bg='#f8f9fa').pack(anchor='w', padx=10, pady=2)
+        
+        def cambiar():
+            password = password_entry.get()
+            confirm = confirm_entry.get()
+            
+            if not password:
+                messagebox.showerror("Error", "La contraseña es obligatoria")
+                password_entry.focus()
+                return
+            
+            if len(password) < 6:
+                messagebox.showerror("Error", "La contraseña debe tener al menos 6 caracteres")
+                password_entry.focus()
+                return
+            
+            if password != confirm:
+                messagebox.showerror("Error", "Las contraseñas no coinciden")
+                confirm_entry.focus()
+                return
+            
+            try:
+                import hashlib
+                password_hash = hashlib.sha256(password.encode()).hexdigest()
+                
+                query = "UPDATE usuarios SET password = %s WHERE id = %s"
+                result = db.execute_query(query, (password_hash, user_id))
+                
+                if result:
+                    messagebox.showinfo("Éxito", f"Contraseña cambiada para {user_name}")
+                    dialog.destroy()
+                else:
+                    messagebox.showerror("Error", "No se pudo cambiar la contraseña")
+                    
+            except Exception as e:
+                messagebox.showerror("Error", f"Error cambiando contraseña: {str(e)}")
+        
+        # Botones
+        button_frame = tk.Frame(main_frame, bg='#f8f9fa')
+        button_frame.pack(fill='x')
+        
+        tk.Button(button_frame, text="CANCELAR", font=('Arial', 11, 'bold'),
+                 bg='#95a5a6', fg='white', width=12, height=1,
+                 command=dialog.destroy).pack(side='left', padx=5)
+        
+        tk.Button(button_frame, text="CAMBIAR", font=('Arial', 11, 'bold'),
+                 bg='#f39c12', fg='white', width=12, height=1,
+                 command=cambiar).pack(side='right', padx=5)
+        
+        password_entry.focus()
+    
+    def toggle_usuario_estado(self):
+        """Activar/Desactivar usuario"""
+        selection = self.users_tree.selection()
+        if not selection:
+            messagebox.showwarning("Advertencia", "Seleccione un usuario para cambiar estado")
+            return
+        
+        user_id = self.users_tree.item(selection[0])['values'][0]
+        user_name = self.users_tree.item(selection[0])['values'][1]
+        current_status = self.users_tree.item(selection[0])['values'][5]
+        
+        # No permitir desactivar el usuario actual
+        if user_id == auth.current_user['id']:
+            messagebox.showwarning("Advertencia", "No puede desactivar su propio usuario")
+            return
+        
+        # Determinar nueva acción
+        is_active = "Activo" in current_status
+        action = "desactivar" if is_active else "activar"
+        new_status = not is_active
+        
+        # Confirmar acción
+        respuesta = messagebox.askyesno("Confirmar Acción", 
+            f"¿Está seguro de {action} el usuario '{user_name}'?\n\n"
+            f"Usuario {'no podrá' if not new_status else 'podrá'} acceder al sistema.")
+        
+        if respuesta:
+            try:
+                query = "UPDATE usuarios SET activo = %s WHERE id = %s"
+                result = db.execute_query(query, (new_status, user_id))
+                
+                if result:
+                    status_text = "activado" if new_status else "desactivado"
+                    messagebox.showinfo("Éxito", f"Usuario '{user_name}' {status_text} correctamente")
+                    self.load_users()
+                else:
+                    messagebox.showerror("Error", f"No se pudo {action} el usuario")
+                    
+            except Exception as e:
+                messagebox.showerror("Error", f"Error cambiando estado: {str(e)}")
+    
+    def exportar_usuarios(self):
+        """Exportar usuarios a Excel"""
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment
+            from datetime import datetime
+            
+            # Obtener datos
+            query = """
+            SELECT u.id, u.nombre, u.usuario, u.rol, u.email, u.activo, 
+                   u.ultimo_acceso, u.fecha_creacion
+            FROM usuarios u
+            ORDER BY u.rol, u.nombre
+            """
+            usuarios = db.execute_query(query)
+            
+            # Crear workbook
+            wb = Workbook()
+            sheet = wb.active
+            sheet.title = "Usuarios del Sistema"
+            
+            # Título
+            sheet.merge_cells('A1:H1')
+            title_cell = sheet['A1']
+            title_cell.value = f"LISTADO DE USUARIOS - {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+            title_cell.font = Font(bold=True, size=14, color='FFFFFF')
+            title_cell.fill = PatternFill('solid', start_color='2980B9')
+            title_cell.alignment = Alignment(horizontal='center')
+            
+            # Headers
+            headers = ['ID', 'Nombre Completo', 'Usuario', 'Rol', 'Email', 'Estado', 'Último Acceso', 'Fecha Creación']
+            for col, header in enumerate(headers, 1):
+                cell = sheet.cell(row=3, column=col, value=header)
+                cell.font = Font(bold=True, color='FFFFFF')
+                cell.fill = PatternFill('solid', start_color='3498DB')
+                cell.alignment = Alignment(horizontal='center')
+            
+            # Datos
+            for row, usuario in enumerate(usuarios, 4):
+                sheet.cell(row=row, column=1, value=usuario['id'])
+                sheet.cell(row=row, column=2, value=usuario['nombre'])
+                sheet.cell(row=row, column=3, value=usuario['usuario'])
+                sheet.cell(row=row, column=4, value=usuario['rol'].upper())
+                sheet.cell(row=row, column=5, value=usuario['email'] or '')
+                sheet.cell(row=row, column=6, value='Activo' if usuario['activo'] else 'Inactivo')
+                
+                # Formatear fechas
+                if usuario['ultimo_acceso']:
+                    sheet.cell(row=row, column=7, value=usuario['ultimo_acceso'].strftime('%d/%m/%Y %H:%M'))
+                sheet.cell(row=row, column=8, value=usuario['fecha_creacion'].strftime('%d/%m/%Y'))
+            
+            # Ajustar columnas
+            sheet.column_dimensions['A'].width = 8
+            sheet.column_dimensions['B'].width = 25
+            sheet.column_dimensions['C'].width = 15
+            sheet.column_dimensions['D'].width = 12
+            sheet.column_dimensions['E'].width = 25
+            sheet.column_dimensions['F'].width = 12
+            sheet.column_dimensions['G'].width = 18
+            sheet.column_dimensions['H'].width = 15
+            
+            # Guardar archivo
+            filename = f"usuarios_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            filepath = f"/mnt/user-data/outputs/{filename}"
+            wb.save(filepath)
+            
+            messagebox.showinfo("Éxito", f"Usuarios exportados correctamente\nArchivo: {filename}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Error exportando usuarios: {str(e)}")
+    
+    # ================== FUNCIONES DE REPORTES DE USUARIOS ==================
+    
+    def reporte_usuarios_completo(self):
+        """Generar reporte completo de usuarios"""
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment
+            from datetime import datetime
+            
+            # Obtener datos estadísticos
+            stats_query = """
+            SELECT 
+                COUNT(*) as total_usuarios,
+                SUM(CASE WHEN activo = 1 THEN 1 ELSE 0 END) as usuarios_activos,
+                SUM(CASE WHEN rol = 'admin' THEN 1 ELSE 0 END) as admins,
+                SUM(CASE WHEN rol = 'gerente' THEN 1 ELSE 0 END) as gerentes,
+                SUM(CASE WHEN rol = 'cajero' THEN 1 ELSE 0 END) as cajeros,
+                SUM(CASE WHEN rol = 'supervisor' THEN 1 ELSE 0 END) as supervisores,
+                SUM(CASE WHEN ultimo_acceso >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as activos_30dias
+            FROM usuarios
+            """
+            stats = db.execute_one(stats_query)
+            
+            # Obtener usuarios detallados
+            users_query = """
+            SELECT u.id, u.nombre, u.usuario, u.rol, u.email, u.activo, 
+                   u.ultimo_acceso, u.fecha_creacion,
+                   DATEDIFF(NOW(), u.ultimo_acceso) as dias_sin_acceso
+            FROM usuarios u
+            ORDER BY u.rol, u.activo DESC, u.nombre
+            """
+            usuarios = db.execute_query(users_query)
+            
+            # Crear workbook
+            wb = Workbook()
+            
+            # Hoja de resumen
+            sheet_resumen = wb.active
+            sheet_resumen.title = "Resumen Ejecutivo"
+            
+            # Título resumen
+            sheet_resumen.merge_cells('A1:B1')
+            title_cell = sheet_resumen['A1']
+            title_cell.value = f"REPORTE COMPLETO DE USUARIOS - {datetime.now().strftime('%d/%m/%Y')}"
+            title_cell.font = Font(bold=True, size=14, color='FFFFFF')
+            title_cell.fill = PatternFill('solid', start_color='2980B9')
+            title_cell.alignment = Alignment(horizontal='center')
+            
+            # Estadísticas generales
+            estadisticas = [
+                ("Total de usuarios:", stats['total_usuarios']),
+                ("Usuarios activos:", stats['usuarios_activos']),
+                ("Usuarios inactivos:", stats['total_usuarios'] - stats['usuarios_activos']),
+                ("", ""),
+                ("Por rol:", ""),
+                ("  Administradores:", stats['admins']),
+                ("  Gerentes:", stats['gerentes']),
+                ("  Cajeros:", stats['cajeros']),
+                ("  Supervisores:", stats['supervisores']),
+                ("", ""),
+                ("Usuarios activos (30 días):", stats['activos_30dias'])
+            ]
+            
+            for row, (label, value) in enumerate(estadisticas, 3):
+                if label:
+                    sheet_resumen.cell(row=row, column=1, value=label).font = Font(bold=True)
+                    sheet_resumen.cell(row=row, column=2, value=value)
+            
+            # Ajustar columnas del resumen
+            sheet_resumen.column_dimensions['A'].width = 25
+            sheet_resumen.column_dimensions['B'].width = 15
+            
+            # Hoja de usuarios detallados
+            sheet_usuarios = wb.create_sheet("Usuarios Detallados")
+            
+            # Headers de usuarios
+            headers = ['ID', 'Nombre', 'Usuario', 'Rol', 'Email', 'Estado', 'Último Acceso', 'Días sin Acceso', 'Fecha Creación']
+            for col, header in enumerate(headers, 1):
+                cell = sheet_usuarios.cell(row=1, column=col, value=header)
+                cell.font = Font(bold=True, color='FFFFFF')
+                cell.fill = PatternFill('solid', start_color='3498DB')
+                cell.alignment = Alignment(horizontal='center')
+            
+            # Datos de usuarios
+            for row, usuario in enumerate(usuarios, 2):
+                sheet_usuarios.cell(row=row, column=1, value=usuario['id'])
+                sheet_usuarios.cell(row=row, column=2, value=usuario['nombre'])
+                sheet_usuarios.cell(row=row, column=3, value=usuario['usuario'])
+                sheet_usuarios.cell(row=row, column=4, value=usuario['rol'].upper())
+                sheet_usuarios.cell(row=row, column=5, value=usuario['email'] or '')
+                sheet_usuarios.cell(row=row, column=6, value='Activo' if usuario['activo'] else 'Inactivo')
+                
+                if usuario['ultimo_acceso']:
+                    sheet_usuarios.cell(row=row, column=7, value=usuario['ultimo_acceso'].strftime('%d/%m/%Y %H:%M'))
+                    sheet_usuarios.cell(row=row, column=8, value=usuario['dias_sin_acceso'] or 0)
+                else:
+                    sheet_usuarios.cell(row=row, column=7, value='Nunca')
+                    sheet_usuarios.cell(row=row, column=8, value='N/A')
+                
+                sheet_usuarios.cell(row=row, column=9, value=usuario['fecha_creacion'].strftime('%d/%m/%Y'))
+            
+            # Ajustar columnas de usuarios
+            for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']:
+                sheet_usuarios.column_dimensions[col].width = 18
+            
+            # Guardar
+            filename = f"reporte_usuarios_completo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            filepath = f"/mnt/user-data/outputs/{filename}"
+            wb.save(filepath)
+            
+            messagebox.showinfo("Éxito", f"Reporte completo generado\nArchivo: {filename}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Error generando reporte: {str(e)}")
+    
+    def reporte_actividad_accesos(self):
+        """Reporte de actividad de accesos"""
+        messagebox.showinfo("Función de Actividad", 
+            "Reporte de actividad de accesos:\n\n"
+            "• Últimos accesos por usuario\n"
+            "• Frecuencia de uso del sistema\n"
+            "• Usuarios sin actividad reciente\n"
+            "• Patrones de horarios de trabajo\n\n"
+            "Esta función estará disponible próximamente.")
+    
+    def reporte_usuarios_por_rol(self):
+        """Reporte de usuarios agrupados por rol"""
+        messagebox.showinfo("Función de Usuarios por Rol", 
+            "Reporte de usuarios por rol:\n\n"
+            "• Distribución por tipo de rol\n"
+            "• Permisos asignados\n"
+            "• Usuarios activos/inactivos por rol\n"
+            "• Análisis de estructura organizacional\n\n"
+            "Esta función estará disponible próximamente.")
+    
+    def reporte_usuarios_inactivos(self):
+        """Reporte de usuarios inactivos"""
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, PatternFill, Alignment
+            from datetime import datetime
+            
+            # Obtener usuarios inactivos
+            query = """
+            SELECT u.id, u.nombre, u.usuario, u.rol, u.email, 
+                   u.ultimo_acceso, u.fecha_creacion,
+                   DATEDIFF(NOW(), u.ultimo_acceso) as dias_sin_acceso
+            FROM usuarios u
+            WHERE u.activo = 0 OR u.ultimo_acceso IS NULL OR u.ultimo_acceso < DATE_SUB(NOW(), INTERVAL 60 DAY)
+            ORDER BY u.ultimo_acceso ASC
+            """
+            usuarios_inactivos = db.execute_query(query)
+            
+            if not usuarios_inactivos:
+                messagebox.showinfo("Información", "No hay usuarios inactivos para reportar")
+                return
+            
+            # Crear Excel
+            wb = Workbook()
+            sheet = wb.active
+            sheet.title = "Usuarios Inactivos"
+            
+            # Título
+            sheet.merge_cells('A1:H1')
+            title_cell = sheet['A1']
+            title_cell.value = f"USUARIOS INACTIVOS - {datetime.now().strftime('%d/%m/%Y')}"
+            title_cell.font = Font(bold=True, size=14, color='FFFFFF')
+            title_cell.fill = PatternFill('solid', start_color='E74C3C')
+            title_cell.alignment = Alignment(horizontal='center')
+            
+            # Headers
+            headers = ['ID', 'Nombre', 'Usuario', 'Rol', 'Email', 'Último Acceso', 'Días sin Acceso', 'Fecha Creación']
+            for col, header in enumerate(headers, 1):
+                cell = sheet.cell(row=3, column=col, value=header)
+                cell.font = Font(bold=True, color='FFFFFF')
+                cell.fill = PatternFill('solid', start_color='C0392B')
+                cell.alignment = Alignment(horizontal='center')
+            
+            # Datos
+            for row, usuario in enumerate(usuarios_inactivos, 4):
+                sheet.cell(row=row, column=1, value=usuario['id'])
+                sheet.cell(row=row, column=2, value=usuario['nombre'])
+                sheet.cell(row=row, column=3, value=usuario['usuario'])
+                sheet.cell(row=row, column=4, value=usuario['rol'].upper())
+                sheet.cell(row=row, column=5, value=usuario['email'] or '')
+                
+                if usuario['ultimo_acceso']:
+                    sheet.cell(row=row, column=6, value=usuario['ultimo_acceso'].strftime('%d/%m/%Y %H:%M'))
+                    sheet.cell(row=row, column=7, value=usuario['dias_sin_acceso'])
+                else:
+                    sheet.cell(row=row, column=6, value='Nunca')
+                    sheet.cell(row=row, column=7, value='N/A')
+                
+                sheet.cell(row=row, column=8, value=usuario['fecha_creacion'].strftime('%d/%m/%Y'))
+            
+            # Ajustar columnas
+            for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']:
+                sheet.column_dimensions[col].width = 18
+            
+            # Guardar
+            filename = f"usuarios_inactivos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            filepath = f"/mnt/user-data/outputs/{filename}"
+            wb.save(filepath)
+            
+            messagebox.showinfo("Éxito", f"Reporte de usuarios inactivos generado\nArchivo: {filename}")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Error generando reporte: {str(e)}")
 
     def admin_ventas(self):
         messagebox.showinfo("Información", "Funcionalidad en desarrollo")
